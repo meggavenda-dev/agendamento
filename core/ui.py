@@ -1,5 +1,6 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timezone
+import pytz
 
 
 def load_css(path: str = "assets/zen.css"):
@@ -18,22 +19,56 @@ def priority_class(p: int) -> str:
     return {1: "badge-urgent", 2: "badge-warn", 3: "badge-accent", 4: "badge-ok"}.get(p, "badge-accent")
 
 
-def fmt_dt(iso: str) -> str:
+def _parse_iso(iso: str):
+    """
+    Converte ISO string (incluindo 'Z') em datetime c/ tzinfo.
+    """
     if not iso:
-        return ""
+        return None
     try:
         dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-        return dt.strftime("%d/%m %H:%M")
+        # Se ainda vier naive, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except Exception:
+        return None
+
+
+def fmt_dt(iso: str, tz_name: str = "America/Sao_Paulo") -> str:
+    """
+    Formata datetime ISO exibindo no fuso local (tz_name).
+    O banco deve guardar em UTC; aqui convertemos para o fuso do usuário.
+    """
+    if not iso:
+        return ""
+    dt = _parse_iso(iso)
+    if not dt:
         return str(iso)
 
+    try:
+        tz = pytz.timezone(tz_name) if tz_name else pytz.timezone("America/Sao_Paulo")
+    except Exception:
+        tz = pytz.timezone("America/Sao_Paulo")
 
-def item_card(item: dict):
-    due_txt = fmt_dt(item.get("due_at") or item.get("start_at"))
+    dt_local = dt.astimezone(tz)
+    return dt_local.strftime("%d/%m %H:%M")
+
+
+def item_card(item: dict, tz_name: str = "America/Sao_Paulo"):
+    """
+    Card do item.
+    Agora exibe a hora no fuso local do usuário (tz_name).
+    """
+    # permite override por item (se quiser setar item["tz_name"] em queries)
+    effective_tz = item.get("tz_name") or tz_name
+
+    due_txt = fmt_dt(item.get("due_at") or item.get("start_at"), effective_tz)
+
     st.markdown(
         f"""
         <div class="pulse-card">
-          <div class="pulse-title">{item['title']}</div>
+          <div class="pulse-title">{item.get('title','')}</div>
           <div class="pulse-meta">
             <span class="badge {priority_class(item.get('priority',3))}">{priority_label(item.get('priority',3))}</span>
             <span class="badge badge-accent">{item.get('tag','geral')}</span>
