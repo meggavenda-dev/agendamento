@@ -3,6 +3,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 from dateutil import tz
 
+from src.style import apply_style, card_open, card_close
 from src.db import (
     visits_list_range,
     tasks_list_overdue,
@@ -13,7 +14,10 @@ from src.db import (
     clinics_hot,
 )
 
-st.header("Hoje — Painel de Guerra")
+apply_style()
+
+st.title("📍 Hoje")
+st.caption("Painel de guerra: foco no que move fechamento e elimina pendências.")
 
 tz_name = st.secrets.get("TIMEZONE", "America/Sao_Paulo")
 zone = tz.gettz(tz_name)
@@ -23,128 +27,131 @@ end_plus3 = (start_today + timedelta(days=3)).replace(hour=23, minute=59, second
 
 today_iso = now.date().isoformat()
 
-# Visitas hoje + próximos 3 dias
 vis_res = visits_list_range(
     start_today.astimezone(tz.UTC).isoformat(),
     end_plus3.astimezone(tz.UTC).isoformat(),
 )
 visits = vis_res.data or []
 
-st.subheader("Visitas (Hoje + próximos 3 dias)")
-if not visits:
-    st.info("Sem visitas no período.")
-else:
-    rows, options, lookup = [], [], {}
-    for v in visits:
-        s = datetime.fromisoformat(v["start_at"].replace("Z", "+00:00")).astimezone(zone)
-        e = datetime.fromisoformat(v["end_at"].replace("Z", "+00:00")).astimezone(zone)
-        clinic_name = (v.get("clinics") or {}).get("legal_name")
-        opt = f"#{v['visit_id']} | {s.strftime('%d/%m %H:%M')} | {v['clinic_id']} - {clinic_name} | {v['status']}"
-        options.append(opt)
-        lookup[opt] = v
-        rows.append({
-            "visit_id": int(v["visit_id"]),
-            "data": s.strftime("%d/%m/%Y"),
-            "inicio": s.strftime("%H:%M"),
-            "fim": e.strftime("%H:%M"),
-            "clinica": f"{v['clinic_id']} - {clinic_name}",
-            "status": v.get("status"),
-            "tipo": v.get("visit_type"),
-            "objetivo": v.get("objective"),
-        })
-    st.dataframe(rows, use_container_width=True)
+# KPIs
+vis_today = 0
+for v in visits:
+    s = datetime.fromisoformat(v["start_at"].replace("Z", "+00:00")).astimezone(zone)
+    if s.date() == now.date():
+        vis_today += 1
 
-    st.markdown("### Ação rápida")
-    chosen = st.selectbox("Selecione a visita", options)
-    v = lookup[chosen]
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+with kpi1:
+    st.metric("Visitas hoje", vis_today)
+with kpi2:
+    st.metric("Próx 3 dias", len(visits))
 
-    status_list = ["Agendado", "Confirmada", "Realizado", "Reagendada", "Cancelada", "Fechado Parceria", "Sem Parceria"]
-    new_status = st.selectbox(
-        "Atualizar status para",
-        status_list,
-        index=status_list.index(v.get("status")) if v.get("status") in status_list else 0,
-    )
+od = (tasks_list_overdue(today_iso).data or [])
+with kpi3:
+    st.metric("Tarefas vencidas", len(od))
 
-    if st.button("Atualizar status", type="primary"):
-        visits_update(int(v["visit_id"]), {"status": new_status})
-        apply_clinic_status_from_visit(int(v["clinic_id"]), new_status)
-        st.success("Status atualizado!")
-        st.rerun()
+no_next = (clinics_without_next_action().data or [])
+with kpi4:
+    st.metric("Sem próxima ação", len(no_next))
 
 st.divider()
 
-# Alertas
-colA, colB, colC = st.columns(3)
+# Visitas tabela + ação rápida
+left, right = st.columns([2,1])
 
-with colA:
-    st.subheader("Clínicas sem próxima ação")
-    res = clinics_without_next_action().data or []
-    if res:
-        st.dataframe([
-            {
-                "clinic_id": x["clinic_id"],
-                "clinica": x["legal_name"],
-                "etapa": x.get("lead_status"),
-                "interesse": x.get("interest_level"),
-                "prob": x.get("probability"),
-            }
-            for x in res
-        ], use_container_width=True, height=260)
+with left:
+    st.subheader("Agenda (Hoje + 3 dias)")
+    if not visits:
+        st.info("Sem visitas no período.")
     else:
-        st.success("Tudo com próxima ação definida ✅")
+        rows, options, lookup = [], [], {}
+        for v in visits:
+            s = datetime.fromisoformat(v["start_at"].replace("Z", "+00:00")).astimezone(zone)
+            e = datetime.fromisoformat(v["end_at"].replace("Z", "+00:00")).astimezone(zone)
+            clinic_name = (v.get("clinics") or {}).get("legal_name")
+            opt = f"#{v['visit_id']} | {s.strftime('%d/%m %H:%M')} | {v['clinic_id']} - {clinic_name} | {v['status']}"
+            options.append(opt)
+            lookup[opt] = v
+            rows.append({
+                "data": s.strftime("%d/%m"),
+                "início": s.strftime("%H:%M"),
+                "fim": e.strftime("%H:%M"),
+                "clínica": clinic_name,
+                "status": v.get("status"),
+                "tipo": v.get("visit_type"),
+            })
+        st.dataframe(rows, use_container_width=True, height=360)
 
-with colB:
-    st.subheader("Realizadas sem ata finalizada")
+with right:
+    st.subheader("Ação rápida")
+    if visits:
+        chosen = st.selectbox("Selecione a visita", options)
+        v = lookup[chosen]
+        status_list = ["Agendado", "Confirmada", "Realizado", "Reagendada", "Cancelada", "Fechado Parceria", "Sem Parceria"]
+        new_status = st.selectbox(
+            "Atualizar status",
+            status_list,
+            index=status_list.index(v.get("status")) if v.get("status") in status_list else 0,
+        )
+        if st.button("Salvar status", type="primary", use_container_width=True):
+            visits_update(int(v["visit_id"]), {"status": new_status})
+            apply_clinic_status_from_visit(int(v["clinic_id"]), new_status)
+            st.success("Atualizado!")
+            st.rerun()
+    else:
+        st.info("Sem visita para atualizar.")
+
+st.divider()
+
+# Alert cards
+c1, c2, c3 = st.columns(3)
+
+with c1:
+    card_open()
+    st.markdown("<div class='card-title'>🔴 Clínicas sem próxima ação</div>", unsafe_allow_html=True)
+    st.markdown("<div class='muted'>Leads em andamento que estão parados.</div>", unsafe_allow_html=True)
+    if not no_next:
+        st.success("Tudo definido ✅")
+    else:
+        for x in no_next[:8]:
+            st.write(f"**{x['clinic_id']} — {x['legal_name']}**")
+        with st.expander("Ver tudo"):
+            st.dataframe(no_next, use_container_width=True)
+    card_close()
+
+with c2:
+    card_open()
+    st.markdown("<div class='card-title'>🟡 Realizadas sem ata finalizada</div>", unsafe_allow_html=True)
+    st.markdown("<div class='muted'>Visitas que precisam virar registro/decisão.</div>", unsafe_allow_html=True)
     res = visits_realized_without_minutes().data or []
-    if res:
-        st.dataframe([
-            {
-                "visit_id": x["visit_id"],
-                "clinica": (x.get("clinics") or {}).get("legal_name"),
-                "data": x.get("start_at"),
-                "ata_finalizada": x.get("ata_finalized"),
-            }
-            for x in res
-        ], use_container_width=True, height=260)
+    if not res:
+        st.success("Nada pendente ✅")
     else:
-        st.success("Nenhuma pendência de ata 🎉")
+        for x in res[:8]:
+            clinic = (x.get("clinics") or {}).get("legal_name")
+            st.write(f"**#{x['visit_id']} — {clinic}**")
+        with st.expander("Ver tudo"):
+            st.dataframe(res, use_container_width=True)
+    card_close()
 
-with colC:
-    st.subheader("Clínicas quentes")
-    res = clinics_hot().data or []
-    if res:
-        st.dataframe([
-            {
-                "clinic_id": x["clinic_id"],
-                "clinica": x["legal_name"],
-                "etapa": x.get("lead_status"),
-                "prob": x.get("probability"),
-                "potencial": x.get("potential_value"),
-                "prox_acao": x.get("next_action"),
-                "prazo": x.get("next_action_due"),
-            }
-            for x in res
-        ], use_container_width=True, height=260)
+with c3:
+    card_open()
+    st.markdown("<div class='card-title'>🟢 Clínicas quentes</div>", unsafe_allow_html=True)
+    st.markdown("<div class='muted'>Alta chance/alto interesse.</div>", unsafe_allow_html=True)
+    hot = (clinics_hot().data or [])
+    if not hot:
+        st.info("Sem quentes agora")
     else:
-        st.info("Sem clínicas quentes no momento.")
+        for x in hot[:8]:
+            st.write(f"**{x['clinic_id']} — {x['legal_name']}** | prob: {x.get('probability')}")
+        with st.expander("Ver tudo"):
+            st.dataframe(hot, use_container_width=True)
+    card_close()
 
 st.divider()
 
-# Tarefas vencidas
 st.subheader("Tarefas vencidas")
-overdue = (tasks_list_overdue(today_iso).data or [])
-if overdue:
-    st.dataframe([
-        {
-            "task_id": t["task_id"],
-            "clinica": (t.get("clinics") or {}).get("legal_name"),
-            "titulo": t.get("title"),
-            "vencimento": t.get("due_date"),
-            "status": t.get("status"),
-            "prioridade": t.get("priority"),
-            "impacto": t.get("impact"),
-        }
-        for t in overdue
-    ], use_container_width=True)
+if od:
+    st.dataframe(od, use_container_width=True, height=260)
 else:
-    st.success("Nenhuma tarefa vencida 🎉")
+    st.success("Nenhuma vencida 🎉")
