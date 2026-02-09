@@ -4,6 +4,9 @@ import pytz
 
 
 def load_css(path: str = "assets/zen.css"):
+    """
+    Carrega CSS custom do app (tema Zen).
+    """
     try:
         with open(path, "r", encoding="utf-8") as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
@@ -12,22 +15,22 @@ def load_css(path: str = "assets/zen.css"):
 
 
 def priority_label(p: int) -> str:
-    return {1: "Urgente", 2: "Importante", 3: "Normal", 4: "Baixa"}.get(p, "Normal")
+    return {1: "Urgente", 2: "Importante", 3: "Normal", 4: "Baixa"}.get(int(p or 3), "Normal")
 
 
 def priority_class(p: int) -> str:
-    return {1: "badge-urgent", 2: "badge-warn", 3: "badge-accent", 4: "badge-ok"}.get(p, "badge-accent")
+    return {1: "badge-urgent", 2: "badge-warn", 3: "badge-accent", 4: "badge-ok"}.get(int(p or 3), "badge-accent")
 
 
 def _parse_iso(iso: str):
     """
-    Converte ISO string (incluindo 'Z') em datetime c/ tzinfo.
+    Converte ISO string (incluindo 'Z') em datetime com tzinfo.
     """
     if not iso:
         return None
     try:
         dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-        # Se ainda vier naive, assume UTC
+        # Se vier naive, assume UTC
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
@@ -38,10 +41,14 @@ def _parse_iso(iso: str):
 def fmt_dt(iso: str, tz_name: str = "America/Sao_Paulo") -> str:
     """
     Formata datetime ISO exibindo no fuso local (tz_name).
-    O banco deve guardar em UTC; aqui convertemos para o fuso do usuário.
+
+    Recomendação:
+    - banco salva em UTC (timestamptz)
+    - UI converte para timezone do perfil
     """
     if not iso:
         return ""
+
     dt = _parse_iso(iso)
     if not dt:
         return str(iso)
@@ -58,9 +65,9 @@ def fmt_dt(iso: str, tz_name: str = "America/Sao_Paulo") -> str:
 def item_card(item: dict, tz_name: str = "America/Sao_Paulo"):
     """
     Card do item.
-    Agora exibe a hora no fuso local do usuário (tz_name).
+    Exibe hora no fuso do usuário (tz_name).
     """
-    # permite override por item (se quiser setar item["tz_name"] em queries)
+    # permite override por item (se você quiser setar item["tz_name"] nas queries)
     effective_tz = item.get("tz_name") or tz_name
 
     due_txt = fmt_dt(item.get("due_at") or item.get("start_at"), effective_tz)
