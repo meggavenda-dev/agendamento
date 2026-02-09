@@ -5,10 +5,8 @@ import streamlit as st
 def get_supabase():
     url = (st.secrets.get("SUPABASE_URL") or "").strip()
     key = (st.secrets.get("SUPABASE_KEY") or "").strip()
-
     if not url or not key:
         raise RuntimeError("Faltam SUPABASE_URL e/ou SUPABASE_KEY nos Secrets.")
-
     return create_client(url, key)
 
 def fetch_settings():
@@ -16,16 +14,11 @@ def fetch_settings():
     res = sb.table("settings").select("value").eq("key", "scheduler").single().execute()
     return res.data["value"] if res.data else {}
 
-# ----------------------
-# Clinics
-# ----------------------
-
 def clinics_upsert(rows: list[dict]):
     sb = get_supabase()
     return sb.table("clinics").upsert(rows).execute()
 
 def clinics_get_by_id(clinic_id: int):
-    """Retorna dict da clínica ou None. Não usa .single() para evitar erro quando 0 linhas."""
     sb = get_supabase()
     try:
         res = sb.table("clinics").select("*").eq("clinic_id", clinic_id).limit(1).execute()
@@ -48,10 +41,6 @@ def clinic_has_any_visit(clinic_id: int) -> bool:
     res = sb.table("visits").select("visit_id").eq("clinic_id", clinic_id).limit(1).execute()
     return bool(res.data)
 
-# ----------------------
-# Visits
-# ----------------------
-
 def visits_list_by_date(date_iso: str):
     sb = get_supabase()
     start = f"{date_iso}T00:00:00"
@@ -73,10 +62,6 @@ def visits_update(visit_id: int, payload: dict):
 def visits_delete(visit_id: int):
     sb = get_supabase()
     return sb.table("visits").delete().eq("visit_id", visit_id).execute()
-
-# ----------------------
-# Tasks
-# ----------------------
 
 def tasks_list_overdue(today_iso: str):
     sb = get_supabase()
