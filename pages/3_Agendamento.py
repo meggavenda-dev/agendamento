@@ -2,10 +2,15 @@ import streamlit as st
 from datetime import datetime, timedelta, date
 from dateutil import tz
 
-from src.db import (
-    fetch_settings, visits_list_by_date, visits_create, clinics_get_by_id,
-    visits_update, visits_delete, clinics_update, clinic_has_any_visit
-)
+from src.db import fetch_settings
+from src.db import visits_list_by_date
+from src.db import visits_create
+from src.db import clinics_get_by_id
+from src.db import visits_update
+from src.db import visits_delete
+from src.db import clinics_update
+from src.db import clinic_has_any_visit
+
 from src.scheduler import build_slots, filter_available_slots, assert_no_conflict
 
 st.header("📅 Agendamento")
@@ -25,6 +30,13 @@ with a:
     selected_date = st.date_input("Selecione a data", value=date.today())
 with b:
     st.caption(f"Grade sugerida: {work_start}–{work_end} | passo {slot_minutes} min | visita {visit_minutes} min")
+
+# Reseta seleção ao trocar a data
+if "last_date" not in st.session_state:
+    st.session_state.last_date = selected_date
+if st.session_state.last_date != selected_date:
+    st.session_state.selected_slot = None
+    st.session_state.last_date = selected_date
 
 # Carrega visitas do dia
 res = visits_list_by_date(selected_date.isoformat())
@@ -62,7 +74,6 @@ else:
 slots = build_slots(selected_date, tz_name, work_start, work_end, slot_minutes, visit_minutes)
 available = filter_available_slots(slots, existing)
 
-# Para renderizar a grade, vamos marcar todos os slots e sinalizar ocupados
 slot_map = {}
 for s, e in slots:
     label = f"{s.strftime('%H:%M')}–{e.strftime('%H:%M')}"
@@ -77,9 +88,8 @@ if "selected_slot" not in st.session_state:
     st.session_state.selected_slot = None
 
 labels = list(slot_map.keys())
-# Exibe em grid (colunas)
 for i in range(0, len(labels), cols_in_grid):
-    row = labels[i:i+cols_in_grid]
+    row = labels[i:i + cols_in_grid]
     cols = st.columns(cols_in_grid)
     for j, lab in enumerate(row):
         info = slot_map[lab]
@@ -92,7 +102,6 @@ for i in range(0, len(labels), cols_in_grid):
         elif is_selected:
             btn_label += " ✅"
 
-        
         clicked = cols[j].button(
             btn_label,
             key=f"slot_{selected_date.isoformat()}_{lab}",
@@ -100,8 +109,7 @@ for i in range(0, len(labels), cols_in_grid):
         )
         if clicked:
             st.session_state.selected_slot = lab
-            st.rerun()  # ✅ força renderizar já com o novo selecionado
-
+            st.rerun()  # força renderizar com o novo selecionado
 
 st.divider()
 
@@ -125,9 +133,8 @@ else:
 
 if st.button("Buscar clínica", type="secondary"):
     c = clinics_get_by_id(int(clinic_id))
-    if not c:        
-        st.error("Clínica não encontrada (ou sem permissão). Cadastre/importe primeiro.")
-        st.stop()
+    if not c:
+        st.error("Clínica não encontrada. Cadastre/importe primeiro na aba 'Cadastro de Clínicas'.")
     else:
         st.success(f"Clínica: {c['clinic_id']} - {c['legal_name']} | Status: {c.get('status','Prospect')}")
 
@@ -136,19 +143,17 @@ if st.button("Agendar visita", type="primary"):
         st.error("Selecione um horário válido.")
         st.stop()
 
-    # Bloqueia conflito em ambos os modos (segurança)
     try:
         assert_no_conflict(start_dt, end_dt, existing)
     except ValueError as e:
         st.error(str(e))
         st.stop()
 
-    c = clinics_get_by_id(int(clinic_id)).data
+    c = clinics_get_by_id(int(clinic_id))
     if not c:
-        st.error("Clínica não encontrada. Cadastre/importa primeiro.")
+        st.error("Clínica não encontrada. Cadastre/importe primeiro.")
         st.stop()
 
-    # Regra (A): ao agendar a PRIMEIRA visita e clínica em Prospect => Em negociação
     had_any = clinic_has_any_visit(int(clinic_id))
     clinic_status = (c.get("status") or "Prospect")
 
@@ -160,6 +165,7 @@ if st.button("Agendar visita", type="primary"):
     }
     visits_create(payload)
 
+    # Automação: primeira visita e clínica Prospect => Em negociação
     if (not had_any) and clinic_status == "Prospect":
         clinics_update(int(clinic_id), {"status": "Em negociação"})
 
