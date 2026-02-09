@@ -2,14 +2,14 @@ import streamlit as st
 from datetime import datetime, timedelta, timezone
 
 from core.auth import require_auth
-from core.supa import supabase_anon
+from core.supa import supabase_user
 from core.ui import load_css
 
 st.set_page_config(page_title="Criar • PulseAgenda", layout="wide")
 load_css()
 
 uid = require_auth()
-sb = supabase_anon()
+sb = supabase_user()
 
 st.title("➕ Criar")
 
@@ -50,6 +50,11 @@ if submit:
         st.error("Título é obrigatório.")
         st.stop()
 
+    # garante timezone
+    if due.tzinfo is None:
+        due = due.replace(tzinfo=timezone.utc)
+    due_utc = due.astimezone(timezone.utc)
+
     item = {
         "user_id": uid,
         "type": itype,
@@ -58,14 +63,14 @@ if submit:
         "tag": tag.strip() if tag else "geral",
         "priority": int(priority),
         "status": "todo",
-        "due_at": due.isoformat(),
+        "due_at": due_utc.isoformat(),
         "estimated_minutes": int(estimated),
     }
 
     ins = sb.table("items").insert(item).execute()
     item_id = ins.data[0]["id"]
 
-    remind_at = due - timedelta(minutes=int(remind_before))
+    remind_at = due_utc - timedelta(minutes=int(remind_before))
 
     def add_rem(channel: str):
         sb.table("reminders").insert({
@@ -83,3 +88,4 @@ if submit:
         add_rem("whatsapp")
 
     st.success("Criado ✅")
+    st.rerun()
