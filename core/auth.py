@@ -89,12 +89,17 @@ def login_box():
             sb = supabase_anon()
             try:
                 # Verifica OTP e cria sessão
-                session = sb.auth.verify_otp({
+                
+                res = sb.auth.verify_otp({
                     "email": email,
                     "token": otp.strip(),
                     "type": "email",
                 })
-                st.session_state["sb_session"] = session
+                
+                # res tem .session e .user
+                st.session_state["sb_session"] = res.session
+                st.session_state["sb_user"] = res.user
+
 
                 # Cria/atualiza profile
                 _extract_user_and_upsert_profile(sb, session)
@@ -107,12 +112,20 @@ def login_box():
                 st.error(f"Código inválido ou expirado: {e}")
 
 
+
 def current_user_id():
     session = st.session_state.get("sb_session")
     if not session:
         return None
-    user = getattr(session, "user", None) or (session.get("user") if isinstance(session, dict) else None)
-    return user.get("id") if isinstance(user, dict) else None
+
+    user = getattr(session, "user", None) or st.session_state.get("sb_user")
+
+    # user pode ser objeto (user.id) ou dict (user["id"])
+    uid = getattr(user, "id", None) if user else None
+    if not uid and isinstance(user, dict):
+        uid = user.get("id")
+
+    return uid
 
 
 def require_auth():
