@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import pytz
 
 from core.auth import require_auth
-from core.supa import supabase_anon
+from core.supa import supabase_user
 from core.queries import fetch_semana, get_profile, week_range_for_tz
 from core.ui import load_css, week_day_card, week_item_row
 
@@ -11,7 +11,8 @@ st.set_page_config(page_title="Semana • PulseAgenda", layout="wide")
 load_css()
 
 uid = require_auth()
-sb = supabase_anon()
+sb = supabase_user()
+
 profile = get_profile(sb, uid)
 tz_name = profile.get("timezone", "America/Sao_Paulo")
 
