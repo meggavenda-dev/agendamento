@@ -40,7 +40,7 @@ def _to_iso(dt: datetime.datetime):
     return dt.astimezone(datetime.timezone.utc).isoformat()
 
 for it in items:
-    item_card(it)
+    item_card(it, tz_name)
 
     # ações rápidas
     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
