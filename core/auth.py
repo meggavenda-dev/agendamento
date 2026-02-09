@@ -1,136 +1,144 @@
-import os
 import streamlit as st
-from core.supa import supabase_anon
+from core.supa import supabase_anon, supabase_user, allowed_email
 
 
-def _get(name: str, default: str = "") -> str:
-    """Lê configuração por st.secrets (Streamlit Cloud) ou os.environ (local)."""
-    if name in st.secrets:
-        return str(st.secrets.get(name))
-    return os.environ.get(name, default)
+def _normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
 
 
-def get_redirect_url() -> str:
+def current_user():
     """
-    Para OTP não é obrigatório, mas é útil se você quiser links
-    apontando para seu app (ou no futuro voltar com OAuth).
+    Retorna usuário (objeto ou dict) se logado.
     """
-    return _get("SUPABASE_REDIRECT_URL", "")
+    user = st.session_state.get("sb_user")
+    if user:
+        return user
 
-
-def _extract_user_and_upsert_profile(sb, session):
-    """Extrai dados do usuário e garante que profile exista."""
-    user = getattr(session, "user", None) or (session.get("user") if isinstance(session, dict) else None)
-    if not isinstance(user, dict):
+    sess = st.session_state.get("sb_session")
+    if not sess:
         return None
 
-    uid = user.get("id")
-    email = user.get("email")
-    meta = user.get("user_metadata") or {}
+    # algumas versões guardam user dentro da session
+    return getattr(sess, "user", None) or (sess.get("user") if isinstance(sess, dict) else None)
 
-    # Para OTP, user_metadata pode vir vazio. Vamos criar um display_name simples.
-    display_name = (
-        meta.get("full_name")
-        or meta.get("name")
-        or (email.split("@")[0] if email else "Usuário")
-    )
 
-    if uid:
-        sb.table("profiles").upsert({
+def current_user_email() -> str:
+    user = current_user()
+    email = getattr(user, "email", None) if user else None
+    if not email and isinstance(user, dict):
+        email = user.get("email")
+    return _normalize_email(email)
+
+
+def current_user_id():
+    user = current_user()
+    uid = getattr(user, "id", None) if user else None
+    if not uid and isinstance(user, dict):
+        uid = user.get("id")
+    return uid
+
+
+def logout():
+    try:
+        sb = supabase_anon()
+        sb.auth.sign_out()
+    except Exception:
+        pass
+
+    for k in ["sb_session", "sb_user", "login_email"]:
+        st.session_state.pop(k, None)
+
+    st.rerun()
+
+
+def _ensure_profile_exists():
+    """
+    Garante que exista uma linha em public.profiles para o usuário logado.
+    IMPORTANTE: precisa usar supabase_user() para respeitar RLS.
+    """
+    uid = current_user_id()
+    email = current_user_email()
+    if not uid or not email:
+        return
+
+    # monta display_name simples
+    display_name = email.split("@")[0] if "@" in email else "Usuário"
+
+    sb = supabase_user()
+    # Upsert do perfil do próprio usuário
+    sb.table("profiles").upsert(
+        {
             "id": uid,
             "email": email,
             "display_name": display_name,
             "theme": "zen",
             "email_notifications": True,
-        }).execute()
-
-    return uid
+        }
+    ).execute()
 
 
 def login_box():
     st.markdown("### Entrar no PulseAgenda")
-    st.caption("Use seu e-mail para receber um **código** (OTP) e entrar com segurança.")
+    st.caption("Acesso restrito ao proprietário do app (login com senha).")
 
-    # Mantém o email durante a interação
-    email = st.text_input("Seu e-mail", value=st.session_state.get("login_email", ""))
+    allowed = allowed_email()
+    st.info(f"✅ Somente o e-mail **{allowed}** pode acessar.")
 
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if st.button("📩 Enviar código", use_container_width=True):
-            if not email or "@" not in email:
-                st.error("Digite um e-mail válido.")
+    # Você pode deixar o e-mail fixo (sem chance de erro):
+    email = st.text_input("E-mail", value=allowed, disabled=True)
+    password = st.text_input("Senha", type="password", help="Digite a senha cadastrada no Supabase Auth.")
+
+    if st.button("✅ Entrar", use_container_width=True):
+        email_n = _normalize_email(email)
+
+        if email_n != allowed:
+            st.error("Acesso negado: e-mail não permitido.")
+            st.stop()
+
+        if not password or len(password) < 6:
+            st.error("Digite uma senha válida (mínimo recomendado: 6 caracteres).")
+            st.stop()
+
+        sb = supabase_anon()
+        try:
+            # Login com email+senha (Supabase Auth). [2](https://supabase.com/docs/reference/python/auth-signinwithpassword)
+            res = sb.auth.sign_in_with_password({"email": email_n, "password": password})  # [2](https://supabase.com/docs/reference/python/auth-signinwithpassword)
+
+            session = getattr(res, "session", None) or (res.get("session") if isinstance(res, dict) else None)
+            user = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
+
+            # defesa extra: se por algum motivo retornasse user de outro email
+            u_email = getattr(user, "email", None) if user else None
+            if not u_email and isinstance(user, dict):
+                u_email = user.get("email")
+
+            if _normalize_email(u_email) != allowed:
+                sb.auth.sign_out()
+                st.error("Acesso negado.")
                 st.stop()
 
-            sb = supabase_anon()
-            try:
-                # Envia código (OTP) para o e-mail
-                sb.auth.sign_in_with_otp({"email": email})
-                st.session_state["login_email"] = email
-                st.success("Código enviado! Verifique seu e-mail.")
-            except Exception as e:
-                st.error(f"Erro ao enviar código: {e}")
+            # persiste em session_state
+            st.session_state["sb_session"] = session
+            st.session_state["sb_user"] = user
+            st.session_state["login_email"] = email_n
 
-    otp = st.text_input(
-        "Código recebido (OTP)",
-        value=st.session_state.get("login_otp", ""),
-        max_chars=8,
-        help="Digite o código enviado pelo Supabase ao seu e-mail."
-    )
+            # cria/atualiza profile (com client logado)
+            _ensure_profile_exists()
 
-    with col2:
-        if st.button("✅ Entrar", use_container_width=True):
-            if not email or "@" not in email:
-                st.error("Digite um e-mail válido.")
-                st.stop()
-            if not otp or len(otp.strip()) < 4:
-                st.error("Digite o código recebido.")
-                st.stop()
+            st.success("Login realizado ✅")
+            st.rerun()
 
-            sb = supabase_anon()
-            try:
-                # Verifica OTP e cria sessão
-                
-                res = sb.auth.verify_otp({
-                    "email": email,
-                    "token": otp.strip(),
-                    "type": "email",
-                })
-                
-                # res tem .session e .user
-                st.session_state["sb_session"] = res.session
-                st.session_state["sb_user"] = res.user
-
-
-                # Cria/atualiza profile
-                _extract_user_and_upsert_profile(sb, session)
-
-                # limpa campos do login
-                st.session_state.pop("login_otp", None)
-                st.success("Login realizado ✅")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Código inválido ou expirado: {e}")
-
-
-
-def current_user_id():
-    session = st.session_state.get("sb_session")
-    if not session:
-        return None
-
-    user = getattr(session, "user", None) or st.session_state.get("sb_user")
-
-    # user pode ser objeto (user.id) ou dict (user["id"])
-    uid = getattr(user, "id", None) if user else None
-    if not uid and isinstance(user, dict):
-        uid = user.get("id")
-
-    return uid
+        except Exception as e:
+            st.error(f"Falha no login: {e}")
 
 
 def require_auth():
-    uid = current_user_id()
-    if not uid:
+    """
+    Use no topo das páginas.
+    Se não logado (ou não for o e-mail permitido), mostra login_box e interrompe.
+    """
+    if current_user_email() != allowed_email():
         login_box()
         st.stop()
-    return uid
+
+    return current_user_id()
