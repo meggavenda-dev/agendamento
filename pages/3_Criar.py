@@ -1,17 +1,34 @@
 import streamlit as st
 from datetime import datetime, timedelta, timezone
+import pytz
 
 from core.auth import require_auth
 from core.supa import supabase_user
+from core.queries import get_profile
 from core.ui import load_css
 
 st.set_page_config(page_title="Criar • PulseAgenda", layout="wide")
 load_css()
 
 uid = require_auth()
+
+# ✅ Use o client logado (necessário p/ RLS em insert/update/delete)
 sb = supabase_user()
 
+# ✅ Pega timezone do perfil
+profile = get_profile(sb, uid) or {}
+tz_name = profile.get("timezone", "America/Sao_Paulo")
+
+try:
+    tz = pytz.timezone(tz_name)
+except Exception:
+    tz = pytz.timezone("America/Sao_Paulo")
+    tz_name = "America/Sao_Paulo"
+
 st.title("➕ Criar")
+
+# ✅ valor padrão no fuso local (melhor UX e evita confusão)
+default_local = datetime.now(tz) + timedelta(hours=2)
 
 with st.form("create_item"):
     itype = st.selectbox(
@@ -34,7 +51,9 @@ with st.form("create_item"):
             format_func=lambda x: {1: "Urgente", 2: "Importante", 3: "Normal", 4: "Baixa"}[x],
         )
 
-    due = st.datetime_input("Prazo / Horário", value=datetime.now(timezone.utc) + timedelta(hours=2))
+    # ✅ O usuário escolhe data/hora no fuso local
+    due_local = st.datetime_input("Prazo / Horário", value=default_local)
+
     estimated = st.number_input("Tempo estimado (min)", min_value=5, max_value=480, value=30, step=5)
 
     st.markdown("#### Lembretes")
@@ -50,10 +69,12 @@ if submit:
         st.error("Título é obrigatório.")
         st.stop()
 
-    # garante timezone
-    if due.tzinfo is None:
-        due = due.replace(tzinfo=timezone.utc)
-    due_utc = due.astimezone(timezone.utc)
+    # ✅ Streamlit pode devolver datetime "naive" (sem tzinfo).
+    # A regra correta é: interpretar como horário LOCAL do usuário, depois converter para UTC.
+    if due_local.tzinfo is None:
+        due_local = tz.localize(due_local)
+
+    due_utc = due_local.astimezone(timezone.utc)
 
     item = {
         "user_id": uid,
@@ -63,29 +84,39 @@ if submit:
         "tag": tag.strip() if tag else "geral",
         "priority": int(priority),
         "status": "todo",
+        # ✅ salva UTC no banco (boa prática)
         "due_at": due_utc.isoformat(),
         "estimated_minutes": int(estimated),
     }
 
-    ins = sb.table("items").insert(item).execute()
-    item_id = ins.data[0]["id"]
+    try:
+        ins = sb.table("items").insert(item).execute()
+        item_id = ins.data[0]["id"]
+    except Exception as e:
+        st.error(f"Erro ao criar item: {e}")
+        st.stop()
 
-    remind_at = due_utc - timedelta(minutes=int(remind_before))
+    remind_at_utc = due_utc - timedelta(minutes=int(remind_before))
 
     def add_rem(channel: str):
         sb.table("reminders").insert({
             "user_id": uid,
             "item_id": item_id,
-            "remind_at": remind_at.isoformat(),
+            "remind_at": remind_at_utc.isoformat(),
             "channel": channel,
         }).execute()
 
-    if remind_in_app:
-        add_rem("in_app")
-    if remind_email:
-        add_rem("email")
-    if remind_whats:
-        add_rem("whatsapp")
+    try:
+        if remind_in_app:
+            add_rem("in_app")
+        if remind_email:
+            add_rem("email")
+        if remind_whats:
+            add_rem("whatsapp")
 
-    st.success("Criado ✅")
-    st.rerun()
+        st.success("Criado ✅")
+        st.rerun()
+
+    except Exception as e:
+        st.warning("Item criado, mas ocorreu erro ao salvar lembretes.")
+        st.error(str(e))
