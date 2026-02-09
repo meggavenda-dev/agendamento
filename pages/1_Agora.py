@@ -53,7 +53,8 @@ def _to_iso_utc(dt: datetime.datetime):
 
 
 for it in items:
-    # ✅ exibe no fuso do perfil (se você aplicou o ui.py atualizado)
+    # ✅ exibe no fuso do perfil (se seu item_card aceitar tz_name)
+    # Se seu item_card ainda for o antigo, troque para: item_card(it)
     item_card(it, tz_name)
 
     # ===== Linha de botões compactos (mobile) =====
