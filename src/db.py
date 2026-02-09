@@ -1,4 +1,5 @@
 from supabase import create_client
+from postgrest.exceptions import APIErro
 import streamlit as st
 
 @st.cache_resource
@@ -20,9 +21,20 @@ def clinics_upsert(rows: list[dict]):
     sb = get_supabase()
     return sb.table("clinics").upsert(rows).execute()
 
+
 def clinics_get_by_id(clinic_id: int):
     sb = get_supabase()
-    return sb.table("clinics").select("*").eq("clinic_id", clinic_id).single().execute()
+    try:
+        # sem .single()
+        res = sb.table("clinics").select("*").eq("clinic_id", clinic_id).limit(1).execute()
+        if res.data:
+            return res.data[0]
+        return None
+    except APIError as e:
+        # Se quiser depurar, mostre o erro completo no console/log:
+        # st.write(e)  # opcional
+        return None
+
 
 def clinics_update(clinic_id: int, payload: dict):
     sb = get_supabase()
