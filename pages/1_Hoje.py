@@ -1,157 +1,107 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from dateutil import tz
 
 from src.style import apply_style, card_open, card_close
-from src.db import (
-    visits_list_range,
-    tasks_list_overdue,
-    visits_update,
-    apply_clinic_status_from_visit,
-    clinics_without_next_action,
-    visits_realized_without_minutes,
-    clinics_hot,
-)
+from src.db import fetch_settings, visits_list_by_date, visits_create, clinics_get_by_id, clinics_update
+from src.scheduler import build_slots, filter_available_slots, assert_no_conflict
+from src.constants import VISIT_TYPES
 
 apply_style()
 
-st.title("📍 Hoje")
-st.caption("Painel de guerra: foco no que move fechamento e elimina pendências.")
+st.title("📅 Agendamento")
+st.caption("Marque visitas com rapidez e sem conflitos.")
 
+cfg = fetch_settings()
 tz_name = st.secrets.get("TIMEZONE", "America/Sao_Paulo")
 zone = tz.gettz(tz_name)
-now = datetime.now(zone)
-start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-end_plus3 = (start_today + timedelta(days=3)).replace(hour=23, minute=59, second=59, microsecond=0)
+slot_minutes = int(cfg.get("slot_minutes", 15))
+visit_minutes_default = int(cfg.get("visit_default_minutes", 45))
+work_start = cfg.get("work_start", "08:00")
+work_end = cfg.get("work_end", "18:00")
+cols_in_grid = int(cfg.get("grid_columns", 4))
 
-today_iso = now.date().isoformat()
+cA, cB = st.columns([1,2])
+with cA:
+    selected_date = st.date_input("Data", value=date.today())
+with cB:
+    st.markdown(f"<span class='muted'>Janela: {work_start}–{work_end} • passo {slot_minutes}min • padrão {visit_minutes_default}min</span>", unsafe_allow_html=True)
 
-vis_res = visits_list_range(
-    start_today.astimezone(tz.UTC).isoformat(),
-    end_plus3.astimezone(tz.UTC).isoformat(),
-)
-visits = vis_res.data or []
-
-# KPIs
-vis_today = 0
+res = visits_list_by_date(selected_date.isoformat())
+visits = res.data or []
+existing = []
 for v in visits:
     s = datetime.fromisoformat(v["start_at"].replace("Z", "+00:00")).astimezone(zone)
-    if s.date() == now.date():
-        vis_today += 1
+    e = datetime.fromisoformat(v["end_at"].replace("Z", "+00:00")).astimezone(zone)
+    existing.append({"visit_id": int(v["visit_id"]), "start_at": s, "end_at": e})
 
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-with kpi1:
-    st.metric("Visitas hoje", vis_today)
-with kpi2:
-    st.metric("Próx 3 dias", len(visits))
-
-od = (tasks_list_overdue(today_iso).data or [])
-with kpi3:
-    st.metric("Tarefas vencidas", len(od))
-
-no_next = (clinics_without_next_action().data or [])
-with kpi4:
-    st.metric("Sem próxima ação", len(no_next))
-
-st.divider()
-
-# Visitas tabela + ação rápida
-left, right = st.columns([2,1])
-
-with left:
-    st.subheader("Agenda (Hoje + 3 dias)")
-    if not visits:
-        st.info("Sem visitas no período.")
-    else:
-        rows, options, lookup = [], [], {}
-        for v in visits:
-            s = datetime.fromisoformat(v["start_at"].replace("Z", "+00:00")).astimezone(zone)
-            e = datetime.fromisoformat(v["end_at"].replace("Z", "+00:00")).astimezone(zone)
-            clinic_name = (v.get("clinics") or {}).get("legal_name")
-            opt = f"#{v['visit_id']} | {s.strftime('%d/%m %H:%M')} | {v['clinic_id']} - {clinic_name} | {v['status']}"
-            options.append(opt)
-            lookup[opt] = v
-            rows.append({
-                "data": s.strftime("%d/%m"),
-                "início": s.strftime("%H:%M"),
-                "fim": e.strftime("%H:%M"),
-                "clínica": clinic_name,
-                "status": v.get("status"),
-                "tipo": v.get("visit_type"),
-            })
-        st.dataframe(rows, use_container_width=True, height=360)
-
-with right:
-    st.subheader("Ação rápida")
-    if visits:
-        chosen = st.selectbox("Selecione a visita", options)
-        v = lookup[chosen]
-        status_list = ["Agendado", "Confirmada", "Realizado", "Reagendada", "Cancelada", "Fechado Parceria", "Sem Parceria"]
-        new_status = st.selectbox(
-            "Atualizar status",
-            status_list,
-            index=status_list.index(v.get("status")) if v.get("status") in status_list else 0,
-        )
-        if st.button("Salvar status", type="primary", use_container_width=True):
-            visits_update(int(v["visit_id"]), {"status": new_status})
-            apply_clinic_status_from_visit(int(v["clinic_id"]), new_status)
-            st.success("Atualizado!")
-            st.rerun()
-    else:
-        st.info("Sem visita para atualizar.")
-
-st.divider()
-
-# Alert cards
-c1, c2, c3 = st.columns(3)
-
-with c1:
-    card_open()
-    st.markdown("<div class='card-title'>🔴 Clínicas sem próxima ação</div>", unsafe_allow_html=True)
-    st.markdown("<div class='muted'>Leads em andamento que estão parados.</div>", unsafe_allow_html=True)
-    if not no_next:
-        st.success("Tudo definido ✅")
-    else:
-        for x in no_next[:8]:
-            st.write(f"**{x['clinic_id']} — {x['legal_name']}**")
-        with st.expander("Ver tudo"):
-            st.dataframe(no_next, use_container_width=True)
-    card_close()
-
-with c2:
-    card_open()
-    st.markdown("<div class='card-title'>🟡 Realizadas sem ata finalizada</div>", unsafe_allow_html=True)
-    st.markdown("<div class='muted'>Visitas que precisam virar registro/decisão.</div>", unsafe_allow_html=True)
-    res = visits_realized_without_minutes().data or []
-    if not res:
-        st.success("Nada pendente ✅")
-    else:
-        for x in res[:8]:
-            clinic = (x.get("clinics") or {}).get("legal_name")
-            st.write(f"**#{x['visit_id']} — {clinic}**")
-        with st.expander("Ver tudo"):
-            st.dataframe(res, use_container_width=True)
-    card_close()
-
-with c3:
-    card_open()
-    st.markdown("<div class='card-title'>🟢 Clínicas quentes</div>", unsafe_allow_html=True)
-    st.markdown("<div class='muted'>Alta chance/alto interesse.</div>", unsafe_allow_html=True)
-    hot = (clinics_hot().data or [])
-    if not hot:
-        st.info("Sem quentes agora")
-    else:
-        for x in hot[:8]:
-            st.write(f"**{x['clinic_id']} — {x['legal_name']}** | prob: {x.get('probability')}")
-        with st.expander("Ver tudo"):
-            st.dataframe(hot, use_container_width=True)
-    card_close()
-
-st.divider()
-
-st.subheader("Tarefas vencidas")
-if od:
-    st.dataframe(od, use_container_width=True, height=260)
+card_open()
+st.markdown("<div class='card-title'>Agenda do dia</div>", unsafe_allow_html=True)
+if visits:
+    st.dataframe([
+        {"início": datetime.fromisoformat(v["start_at"].replace("Z", "+00:00")).astimezone(zone).strftime("%H:%M"),
+         "clínica": (v.get("clinics") or {}).get("legal_name"),
+         "status": v.get("status")}
+        for v in visits
+    ], use_container_width=True, height=220)
 else:
-    st.success("Nenhuma vencida 🎉")
+    st.info("Sem visitas nesse dia.")
+card_close()
+
+slots = build_slots(selected_date, tz_name, work_start, work_end, slot_minutes, visit_minutes_default)
+available = filter_available_slots(slots, existing)
+slot_map = {f"{s.strftime('%H:%M')}–{e.strftime('%H:%M')}": {"start": s, "end": e, "available": False} for s,e in slots}
+for s,e in available:
+    slot_map[f"{s.strftime('%H:%M')}–{e.strftime('%H:%M')}"]["available"] = True
+
+st.subheader("Horários disponíveis")
+if "selected_slot" not in st.session_state:
+    st.session_state.selected_slot = None
+labels = list(slot_map.keys())
+for i in range(0, len(labels), cols_in_grid):
+    row = labels[i:i+cols_in_grid]
+    cols = st.columns(cols_in_grid)
+    for j, lab in enumerate(row):
+        info = slot_map[lab]
+        label = lab + (" ✅" if st.session_state.selected_slot==lab else "")
+        if cols[j].button(label, key=f"slot_{selected_date}_{lab}", disabled=not info["available"]):
+            st.session_state.selected_slot = lab
+            st.rerun()
+
+st.divider()
+
+st.subheader("Criar visita")
+clinic_id = st.number_input("IDCLINICA", min_value=1, step=1)
+visit_type = st.selectbox("Tipo", VISIT_TYPES)
+duration = st.number_input("Duração (min)", min_value=15, step=5, value=visit_minutes_default)
+objective = st.text_input("Objetivo (obrigatório)")
+
+if st.button("Agendar", type="primary"):
+    if not st.session_state.selected_slot:
+        st.error("Selecione um horário")
+        st.stop()
+    if not objective.strip():
+        st.error("Objetivo é obrigatório")
+        st.stop()
+    c = clinics_get_by_id(int(clinic_id))
+    if not c:
+        st.error("Clínica não encontrada")
+        st.stop()
+    start_dt = slot_map[st.session_state.selected_slot]["start"]
+    end_dt = start_dt + timedelta(minutes=int(duration))
+    assert_no_conflict(start_dt, end_dt, existing)
+    visits_create({
+        "clinic_id": int(clinic_id),
+        "start_at": start_dt.astimezone(tz.UTC).isoformat(),
+        "end_at": end_dt.astimezone(tz.UTC).isoformat(),
+        "status": "Agendado",
+        "visit_type": visit_type,
+        "objective": objective.strip(),
+        "duration_minutes": int(duration)
+    })
+    if (c.get("lead_status") or "Novo") == "Novo":
+        clinics_update(int(clinic_id), {"lead_status": "Em contato"})
+    st.success("Agendado!")
+    st.session_state.selected_slot = None
+    st.rerun()
