@@ -15,20 +15,104 @@ html, body, [class*="css"]  {
   color: var(--text) !important;
 }
 
-.block-container { padding-top: 1rem; padding-bottom: 5rem; max-width: 980px; }
-.pulse-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px; margin: 10px 0; }
-.pulse-title { font-weight: 650; font-size: 1.02rem; margin-bottom: 4px; }
-.pulse-meta { color: var(--muted); font-size: 0.88rem; }
-.badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.78rem; border:1px solid var(--border); margin-right:6px; }
+.block-container {
+  padding-top: 1rem;
+  padding-bottom: 5rem;
+  max-width: 980px;
+}
+
+.pulse-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  margin: 10px 0;
+}
+
+.pulse-title {
+  font-weight: 650;
+  font-size: 1.02rem;
+  margin-bottom: 4px;
+}
+
+.pulse-meta {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.badge {
+  display:inline-block;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:0.78rem;
+  border:1px solid var(--border);
+  margin-right:6px;
+}
+
 .badge-urgent { color: var(--urgent); }
 .badge-warn { color: var(--warn); }
 .badge-ok { color: var(--ok); }
 .badge-accent { color: var(--accent); }
 
-.footer-actions {
-  position: fixed; left:0; right:0; bottom:0;
-  background: rgba(11, 15, 20, 0.92);
-  border-top: 1px solid var(--border);
-  padding: 10px 14px;
-  display:flex; gap:10px; justify-content:center;
+/* Semana - scroll horizontal */
+.week-scroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
 }
+.week-scroll::-webkit-scrollbar { display: none; }
+.week-scroll { scrollbar-width: none; }
+
+.week-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  min-width: 280px;
+  scroll-snap-align: center;
+}
+
+.week-card-today {
+  background: var(--card);
+  border: 2px solid var(--accent);
+  border-radius: 16px;
+  padding: 14px;
+  min-width: 280px;
+  scroll-snap-align: center;
+}
+
+.day-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.day-title {
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.day-today {
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.empty-day {
+  color: var(--muted);
+  font-size: 0.95rem;
+  padding: 18px 4px;
+  line-height: 1.4;
+}
+
+.item-row {
+  padding: 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 8px 0;
+}
+
+.item-row-title { font-weight: 650; }
+.item-row-meta { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
