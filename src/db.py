@@ -3,8 +3,12 @@ import streamlit as st
 
 @st.cache_resource
 def get_supabase():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    url = (st.secrets.get("SUPABASE_URL") or "").strip()
+    key = (st.secrets.get("SUPABASE_KEY") or "").strip()
+
+    if not url or not key:
+        raise RuntimeError("Faltam SUPABASE_URL e/ou SUPABASE_KEY nos Secrets.")
+
     return create_client(url, key)
 
 def fetch_settings():
@@ -20,10 +24,8 @@ def clinics_upsert(rows: list[dict]):
     sb = get_supabase()
     return sb.table("clinics").upsert(rows).execute()
 
-from postgrest.exceptions import APIError
-
-
-ef clinics_get_by_id(clinic_id: int):
+def clinics_get_by_id(clinic_id: int):
+    """Retorna dict da clínica ou None. Não usa .single() para evitar erro quando 0 linhas."""
     sb = get_supabase()
     try:
         res = sb.table("clinics").select("*").eq("clinic_id", clinic_id).limit(1).execute()
@@ -31,13 +33,11 @@ ef clinics_get_by_id(clinic_id: int):
     except Exception:
         return None
 
-
 def clinics_update(clinic_id: int, payload: dict):
     sb = get_supabase()
     return sb.table("clinics").update(payload).eq("clinic_id", clinic_id).execute()
 
 def apply_clinic_status_from_visit(clinic_id: int, visit_status: str):
-    # Atualiza status da clínica conforme resultado da visita
     if visit_status == "Fechado Parceria":
         clinics_update(clinic_id, {"status": "Ativo"})
     elif visit_status == "Sem Parceria":
