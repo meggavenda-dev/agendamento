@@ -228,5 +228,5 @@ def clinics_hot(limit: int = 200):
         .order("probability", desc=True)
         .limit(limit)
     )
-    q = q.not_("lead_status", "in", '("Fechado","Perdido")')
+    q = q.not_("lead_status", "in", "(Fechado,Perdido)")
     return q.execute()
