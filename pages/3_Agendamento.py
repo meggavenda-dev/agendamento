@@ -124,9 +124,10 @@ else:
     end_dt = start_dt + timedelta(minutes=visit_minutes)
 
 if st.button("Buscar clínica", type="secondary"):
-    c = clinics_get_by_id(int(clinic_id)).data
-    if not c:
-        st.error("Clínica não encontrada. Cadastre/importa primeiro na aba 'Cadastro de Clínicas'.")
+    c = clinics_get_by_id(int(clinic_id))
+    if not c:        
+        st.error("Clínica não encontrada (ou sem permissão). Cadastre/importe primeiro.")
+        st.stop()
     else:
         st.success(f"Clínica: {c['clinic_id']} - {c['legal_name']} | Status: {c.get('status','Prospect')}")
 
