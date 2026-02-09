@@ -54,31 +54,58 @@ html, body, [class*="css"]  {
 .badge-ok { color: var(--ok); }
 .badge-accent { color: var(--accent); }
 
-/* =========================
-   Botões compactos (Agora)
-   Aplica SOMENTE dentro de .action-row
-   ========================= */
+/* =========================================================
+   ACTION ROW (Tela "Agora") — 4 botões lado a lado no mobile
+   Redmi Note 12 (~393px): impedir wrap das colunas do Streamlit
+   ========================================================= */
+
+/* container: se apertar, rola horizontal em vez de empilhar */
+.action-row {
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* esconde scrollbar */
+.action-row::-webkit-scrollbar { display: none; }
+.action-row { scrollbar-width: none; }
+
+/* força o bloco horizontal (colunas) a não quebrar linha */
+.action-row [data-testid="stHorizontalBlock"] {
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  align-items: center !important;
+}
+
+/* cada coluna vira "quadradinho" flexível */
+.action-row [data-testid="column"] {
+  min-width: 0 !important;
+  flex: 1 1 0 !important;
+}
+
+/* botão compacto */
 .action-row [data-testid="stButton"] > button {
-  padding: 6px 10px !important;
+  padding: 6px 8px !important;
   height: 34px !important;
-  font-size: 12px !important;
+  font-size: 11.5px !important;
   line-height: 1 !important;
   border-radius: 10px !important;
   min-width: 0 !important;
   white-space: nowrap !important;
 }
 
-/* Remove margenzinha do parágrafo interno do botão */
+/* remove margens internas do texto no botão */
 .action-row [data-testid="stButton"] > button p {
   margin: 0 !important;
 }
 
-/* Em telas bem pequenas, reduz um pouco mais */
-@media (max-width: 420px) {
+/* se ficar MUITO apertado (telas menores ainda), reduz mais */
+@media (max-width: 380px) {
+  .action-row [data-testid="stHorizontalBlock"] { gap: 5px !important; }
   .action-row [data-testid="stButton"] > button {
-    padding: 6px 8px !important;
     height: 32px !important;
     font-size: 11px !important;
+    padding: 6px 7px !important;
     border-radius: 9px !important;
   }
 }
