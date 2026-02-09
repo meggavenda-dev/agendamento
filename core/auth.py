@@ -3,61 +3,108 @@ import streamlit as st
 from core.supa import supabase_anon
 
 
+def _get(name: str, default: str = "") -> str:
+    """Lê configuração por st.secrets (Streamlit Cloud) ou os.environ (local)."""
+    if name in st.secrets:
+        return str(st.secrets.get(name))
+    return os.environ.get(name, default)
+
+
 def get_redirect_url() -> str:
-    return os.environ.get("SUPABASE_REDIRECT_URL", "")
+    """
+    Para OTP não é obrigatório, mas é útil se você quiser links
+    apontando para seu app (ou no futuro voltar com OAuth).
+    """
+    return _get("SUPABASE_REDIRECT_URL", "")
+
+
+def _extract_user_and_upsert_profile(sb, session):
+    """Extrai dados do usuário e garante que profile exista."""
+    user = getattr(session, "user", None) or (session.get("user") if isinstance(session, dict) else None)
+    if not isinstance(user, dict):
+        return None
+
+    uid = user.get("id")
+    email = user.get("email")
+    meta = user.get("user_metadata") or {}
+
+    # Para OTP, user_metadata pode vir vazio. Vamos criar um display_name simples.
+    display_name = (
+        meta.get("full_name")
+        or meta.get("name")
+        or (email.split("@")[0] if email else "Usuário")
+    )
+
+    if uid:
+        sb.table("profiles").upsert({
+            "id": uid,
+            "email": email,
+            "display_name": display_name,
+            "theme": "zen",
+            "email_notifications": True,
+        }).execute()
+
+    return uid
 
 
 def login_box():
     st.markdown("### Entrar no PulseAgenda")
-    st.caption("Login com Google para manter seus dados sincronizados e seguros.")
+    st.caption("Use seu e-mail para receber um **código** (OTP) e entrar com segurança.")
 
-    if st.button("Entrar com Google", use_container_width=True):
-        sb = supabase_anon()
-        redirect_to = get_redirect_url()
-        res = sb.auth.sign_in_with_oauth({
-            "provider": "google",
-            "options": {"redirect_to": redirect_to},
-        })
-        url = getattr(res, "url", None) or (res.get("url") if isinstance(res, dict) else None)
-        if not url:
-            st.error("Não consegui gerar a URL de login. Verifique a configuração do Google no Supabase.")
-            return
-        st.markdown(f"[Clique aqui para continuar o login]({url})")
+    # Mantém o email durante a interação
+    email = st.text_input("Seu e-mail", value=st.session_state.get("login_email", ""))
 
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("📩 Enviar código", use_container_width=True):
+            if not email or "@" not in email:
+                st.error("Digite um e-mail válido.")
+                st.stop()
 
-def handle_oauth_callback():
-    # Se a URL tiver ?code=..., troca por sessão e salva em session_state.
-    # Também faz upsert em profiles (email/display_name).
-    params = st.query_params
-    code = params.get("code")
-    if not code:
-        return
+            sb = supabase_anon()
+            try:
+                # Envia código (OTP) para o e-mail
+                sb.auth.sign_in_with_otp({"email": email})
+                st.session_state["login_email"] = email
+                st.success("Código enviado! Verifique seu e-mail.")
+            except Exception as e:
+                st.error(f"Erro ao enviar código: {e}")
 
-    sb = supabase_anon()
-    try:
-        session = sb.auth.exchange_code_for_session({"auth_code": code})
-        st.session_state["sb_session"] = session
+    otp = st.text_input(
+        "Código recebido (OTP)",
+        value=st.session_state.get("login_otp", ""),
+        max_chars=8,
+        help="Digite o código enviado pelo Supabase ao seu e-mail."
+    )
 
-        user = getattr(session, "user", None) or (session.get("user") if isinstance(session, dict) else None)
-        if isinstance(user, dict):
-            uid = user.get("id")
-            email = user.get("email")
-            meta = user.get("user_metadata") or {}
-            display_name = meta.get("full_name") or meta.get("name") or (email.split("@")[0] if email else "")
+    with col2:
+        if st.button("✅ Entrar", use_container_width=True):
+            if not email or "@" not in email:
+                st.error("Digite um e-mail válido.")
+                st.stop()
+            if not otp or len(otp.strip()) < 4:
+                st.error("Digite o código recebido.")
+                st.stop()
 
-            sb.table("profiles").upsert({
-                "id": uid,
-                "email": email,
-                "display_name": display_name,
-                "theme": "zen",
-                "email_notifications": True,
-            }).execute()
+            sb = supabase_anon()
+            try:
+                # Verifica OTP e cria sessão
+                session = sb.auth.verify_otp({
+                    "email": email,
+                    "token": otp.strip(),
+                    "type": "email",
+                })
+                st.session_state["sb_session"] = session
 
-        st.query_params.clear()
-        st.success("Login realizado ✅")
+                # Cria/atualiza profile
+                _extract_user_and_upsert_profile(sb, session)
 
-    except Exception as e:
-        st.error(f"Falha no login: {e}")
+                # limpa campos do login
+                st.session_state.pop("login_otp", None)
+                st.success("Login realizado ✅")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Código inválido ou expirado: {e}")
 
 
 def current_user_id():
@@ -69,7 +116,6 @@ def current_user_id():
 
 
 def require_auth():
-    handle_oauth_callback()
     uid = current_user_id()
     if not uid:
         login_box()
