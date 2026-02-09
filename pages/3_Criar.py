@@ -11,11 +11,13 @@ st.set_page_config(page_title="Criar • PulseAgenda", layout="wide")
 load_css()
 
 uid = require_auth()
-
-# ✅ Use o client logado (necessário p/ RLS em insert/update/delete)
 sb = supabase_user()
 
-# ✅ Pega timezone do perfil
+# ====== Toast/sucesso persistente após rerun ======
+if st.session_state.pop("created_success", False):
+    st.success("Criado ✅")
+
+# ====== timezone do perfil ======
 profile = get_profile(sb, uid) or {}
 tz_name = profile.get("timezone", "America/Sao_Paulo")
 
@@ -26,11 +28,12 @@ except Exception:
     tz_name = "America/Sao_Paulo"
 
 st.title("➕ Criar")
+st.caption(f"Fuso horário do app: **{tz_name}**")
 
-# ✅ valor padrão no fuso local (melhor UX e evita confusão)
-default_local = datetime.now(tz) + timedelta(hours=2)
+# default: agora + 2h no fuso local, com segundos zerados
+default_local = datetime.now(tz).replace(second=0, microsecond=0) + timedelta(hours=2)
 
-with st.form("create_item"):
+with st.form("create_item", clear_on_submit=False):
     itype = st.selectbox(
         "Tipo",
         ["task", "meeting", "event"],
@@ -51,8 +54,12 @@ with st.form("create_item"):
             format_func=lambda x: {1: "Urgente", 2: "Importante", 3: "Normal", 4: "Baixa"}[x],
         )
 
-    # ✅ O usuário escolhe data/hora no fuso local
+    # usuário escolhe no fuso local
     due_local = st.datetime_input("Prazo / Horário", value=default_local)
+
+    # normaliza segundos sempre (evita 22:53:12 etc.)
+    if isinstance(due_local, datetime):
+        due_local = due_local.replace(second=0, microsecond=0)
 
     estimated = st.number_input("Tempo estimado (min)", min_value=5, max_value=480, value=30, step=5)
 
@@ -62,6 +69,18 @@ with st.form("create_item"):
     remind_whats = st.checkbox("WhatsApp", value=False)
     remind_before = st.selectbox("Avisar antes", [0, 5, 10, 15, 30, 60], index=3)
 
+    # Preview para evitar confusão de UTC x local
+    # Streamlit pode devolver datetime "naive" (sem tzinfo) — trate como local do perfil
+    due_local_for_preview = due_local
+    if due_local_for_preview.tzinfo is None:
+        due_local_for_preview = tz.localize(due_local_for_preview)
+
+    due_utc_preview = due_local_for_preview.astimezone(timezone.utc)
+    st.caption(
+        f"🕒 Você escolheu **{due_local_for_preview.strftime('%d/%m/%Y %H:%M')}** (local) "
+        f"→ será salvo como **{due_utc_preview.strftime('%Y-%m-%d %H:%MZ')}** (UTC)."
+    )
+
     submit = st.form_submit_button("Salvar", use_container_width=True)
 
 if submit:
@@ -69,11 +88,11 @@ if submit:
         st.error("Título é obrigatório.")
         st.stop()
 
-    # ✅ Streamlit pode devolver datetime "naive" (sem tzinfo).
-    # A regra correta é: interpretar como horário LOCAL do usuário, depois converter para UTC.
+    # garante aware datetime no fuso do perfil
     if due_local.tzinfo is None:
         due_local = tz.localize(due_local)
 
+    # converte para UTC para salvar no banco
     due_utc = due_local.astimezone(timezone.utc)
 
     item = {
@@ -84,8 +103,7 @@ if submit:
         "tag": tag.strip() if tag else "geral",
         "priority": int(priority),
         "status": "todo",
-        # ✅ salva UTC no banco (boa prática)
-        "due_at": due_utc.isoformat(),
+        "due_at": due_utc.isoformat(),  # UTC no banco
         "estimated_minutes": int(estimated),
     }
 
@@ -114,9 +132,11 @@ if submit:
         if remind_whats:
             add_rem("whatsapp")
 
-        st.success("Criado ✅")
+        # ✅ sucesso persistente após rerun
+        st.session_state["created_success"] = True
         st.rerun()
 
     except Exception as e:
+        # item criado, lembretes falharam
         st.warning("Item criado, mas ocorreu erro ao salvar lembretes.")
         st.error(str(e))
