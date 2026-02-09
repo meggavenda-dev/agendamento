@@ -202,7 +202,7 @@ def clinics_without_next_action(limit: int = 200):
         .order("updated_at", desc=True)
         .limit(limit)
     )
-    q = q.not_("lead_status", "in", '("Fechado","Perdido")')
+    q = q.not_("lead_status", "in", "(Fechado,Perdido)")
     return q.execute()
 
 
