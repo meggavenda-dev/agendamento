@@ -54,6 +54,35 @@ html, body, [class*="css"]  {
 .badge-ok { color: var(--ok); }
 .badge-accent { color: var(--accent); }
 
+/* =========================
+   Botões compactos (Agora)
+   Aplica SOMENTE dentro de .action-row
+   ========================= */
+.action-row [data-testid="stButton"] > button {
+  padding: 6px 10px !important;
+  height: 34px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  border-radius: 10px !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Remove margenzinha do parágrafo interno do botão */
+.action-row [data-testid="stButton"] > button p {
+  margin: 0 !important;
+}
+
+/* Em telas bem pequenas, reduz um pouco mais */
+@media (max-width: 420px) {
+  .action-row [data-testid="stButton"] > button {
+    padding: 6px 8px !important;
+    height: 32px !important;
+    font-size: 11px !important;
+    border-radius: 9px !important;
+  }
+}
+
 /* Semana - scroll horizontal */
 .week-scroll {
   display: flex;
