@@ -92,6 +92,7 @@ for i in range(0, len(labels), cols_in_grid):
         elif is_selected:
             btn_label += " ✅"
 
+        
         clicked = cols[j].button(
             btn_label,
             key=f"slot_{selected_date.isoformat()}_{lab}",
@@ -99,6 +100,8 @@ for i in range(0, len(labels), cols_in_grid):
         )
         if clicked:
             st.session_state.selected_slot = lab
+            st.rerun()  # ✅ força renderizar já com o novo selecionado
+
 
 st.divider()
 
