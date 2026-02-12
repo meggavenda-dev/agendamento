@@ -1,92 +1,47 @@
-
 import streamlit as st
-from datetime import datetime, timezone
-import pytz
+from core.supa import supabase_anon, allowed_email, save_session_to_file, clear_saved_session
 
-def load_css(path: str = "assets/zen.css", focus_mode: bool = False):
+def _n(email: str) -> str:
+    return (email or "").strip().lower()
+
+def logout():
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            st.markdown("<style>" + f.read() + "</style>", unsafe_allow_html=True)
-    except FileNotFoundError:
+        supabase_anon().auth.sign_out()
+    except Exception:
         pass
-    if focus_mode:
-        st.markdown("<script>document.body.classList.add('theme-focus');</script>", unsafe_allow_html=True)
+    for k in ["sb_session","sb_user","login_email"]:
+        st.session_state.pop(k, None)
+    clear_saved_session()
+    st.rerun()
 
-def priority_label(p: int) -> str:
-    return {1:"Urgente",2:"Importante",3:"Normal",4:"Baixa"}.get(int(p or 3), "Normal")
+def login_box():
+    st.subheader("Entrar no PulseAgenda")
+    allowed = allowed_email() or ""
+    st.caption("Acesso restrito ao e-mail permitido nas configurações.")
+    email = st.text_input("E-mail", value=allowed, disabled=bool(allowed))
+    password = st.text_input("Senha", type="password")
+    keep = st.checkbox("Manter conectado neste dispositivo", value=True)
 
-def priority_class(p: int) -> str:
-    return {1:"badge-urgent",2:"badge-warn",3:"badge-accent",4:"badge-ok"}.get(int(p or 3), "badge-accent")
+    if st.button("Entrar", use_container_width=True):
+        if allowed and _n(email) != _n(allowed):
+            st.error("E-mail não permitido."); st.stop()
+        sb = supabase_anon()
+        try:
+            res = sb.auth.sign_in_with_password({"email": _n(email), "password": password})
+            session = getattr(res, "session", None) or (res.get("session") if isinstance(res, dict) else None)
+            user    = getattr(res, "user", None)    or (res.get("user") if isinstance(res, dict) else None)
+            if not session:
+                st.error("Falha no login: sem sessão retornada."); st.stop()
 
-def _parse_iso(iso: str):
-    if not iso: return None
-    try:
-        dt = datetime.fromisoformat(iso.replace("Z","+00:00"))
-        if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except Exception:
-        return None
+            st.session_state["sb_session"] = session
+            st.session_state["sb_user"] = user
+            st.session_state["login_email"] = _n(email)
 
-def fmt_dt(iso: str, tz_name: str = "America/Sao_Paulo") -> str:
-    if not iso: return ""
-    dt = _parse_iso(iso)
-    if not dt: return str(iso)
-    try:
-        tz = pytz.timezone(tz_name) if tz_name else pytz.timezone("America/Sao_Paulo")
-    except Exception:
-        tz = pytz.timezone("America/Sao_Paulo")
-    return dt.astimezone(tz).strftime("%d/%m %H:%M")
+            # >>> Persistência local no servidor
+            if keep:
+                save_session_to_file(session)
 
-def item_card(item: dict, tz_name: str = "America/Sao_Paulo"):
-    due_txt = fmt_dt(item.get("due_at") or item.get("start_at"), tz_name)
-    rec = (item.get("recurrence") or "none").lower()
-    rec_html = f"<span class='badge'>rec: {rec}</span>" if rec != "none" else ""
-    pr_cls = priority_class(item.get("priority",3))
-    pr_lab = priority_label(item.get("priority",3))
-    notes = (item.get("notes") or "").strip()
-    html = (
-        "<div class='pa-card'>"
-        + f"<div class='pa-card__title'>{item.get('title','')}</div>"
-        + "<div class='pa-card__meta'>"
-        + f"<span class='badge {pr_cls}'>{pr_lab}</span>"
-        + f"<span class='badge badge-accent'>#{item.get('tag','geral')}</span>"
-        + f"<span class='badge'>{item.get('status','todo')}</span>"
-        + (f"<span class='badge'>Due: {due_txt}</span>" if due_txt else "")
-        + rec_html
-        + "</div>"
-        + (f"<div class='pa-card__meta' style='margin-top:6px;'>{notes}</div>" if notes else "")
-        + "</div>"
-    )
-    st.markdown(html, unsafe_allow_html=True)
-
-def week_day_card(day_label: str, is_today: bool, inner_html: str) -> str:
-    cls = "pa-day pa-day--today" if is_today else "pa-day"
-    today_tag = "<span class='pa-day__today'>Hoje</span>" if is_today else ""
-    return (
-        f"<div class='{cls}'>"
-        f"  <div class='pa-day__header'>"
-        f"    <div class='pa-day__title'>{day_label}</div>"
-        f"    {today_tag}"
-        f"  </div>"
-        f"  {inner_html}"
-        f"</div>"
-    )
-
-def week_item_row(title: str, meta: str, priority: int) -> str:
-    pcls = priority_class(priority); plab = priority_label(priority)
-    return (
-        "<div class='pa-card' style='padding:10px 12px;margin:8px 0;'>"
-        f"  <div class='pa-card__title' style='font-size:0.98rem'>{title}</div>"
-        f"  <div class='pa-card__meta'><span class='badge {pcls}'>{plab}</span> {meta}</div>"
-        "</div>"
-    )
-
-def actions_row(buttons):
-    st.markdown("<div class='pa-actions'>", unsafe_allow_html=True)
-    cols = st.columns(len(buttons), gap="small")
-    clicks = []
-    for i, (label, variant, key) in enumerate(buttons):
-        with cols[i]:
-            clicks.append(st.button(label, key=key, use_container_width=True))
-    st.markdown("</div>", unsafe_allow_html=True)
-    return clicks
+            st.success("Login realizado")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Falha no login: {e}")
