@@ -5,27 +5,6 @@ from core.supa import supabase_user
 from core.queries import fetch_semana, get_profile, week_range_for_tz
 from core.ui import load_css, week_day_card, week_item_row
 
-# =====================================================
-# Helper → fallback de segmented_control → radio
-# =====================================================
-def segmented_or_radio(label: str, options: list[str], default: str, key: str):
-    """
-    Usa st.segmented_control se existir (versões novas).
-    Caso contrário, usa st.radio horizontal (versões antigas).
-    """
-    if hasattr(st, "segmented_control"):
-        return st.segmented_control(label, options=options, default=default, key=key)
-    else:
-        try:
-            idx = options.index(default)
-        except:
-            idx = 0
-        return st.radio(label, options, index=idx, key=key, horizontal=True)
-
-
-# =====================================================
-# Página
-# =====================================================
 st.set_page_config(page_title="Semana • PulseAgenda", layout="wide")
 
 uid = require_auth()
@@ -36,11 +15,12 @@ focus = (prof.get("theme") == "focus")
 load_css(focus_mode=focus)
 
 st.title("Semana")
-st.caption("Navegue com setas, arraste para rolar ou use paginação")
 
-# =====================================================
-# Carrega itens e agrupa por dia
-# =====================================================
+# Botão único para centralizar hoje
+col_today, _ = st.columns([1,6])
+go_today = col_today.button("Ir para Hoje", use_container_width=True)
+
+# Carrega e organiza
 items = fetch_semana(sb, uid, tz_name)
 start_local, _, _, _, tz = week_range_for_tz(tz_name)
 week_days = [start_local + timedelta(days=i) for i in range(7)]
@@ -59,9 +39,9 @@ for it in items:
     if key in bucket:
         bucket[key].append((dt_local, it))
 
-# Ordenação: prioridade → horário
+# Ordenação priorizando prioridade e horário
 for k in bucket:
-    bucket[k].sort(key=lambda x: (x[1].get("priority", 3), x[0]))
+    bucket[k].sort(key=lambda x: (x[1].get("priority",3), x[0]))
 
 now_local = datetime.now(tz)
 today_key = now_local.date().isoformat()
@@ -80,128 +60,24 @@ for i, d in enumerate(week_days):
         inner = "".join(rows)
     html_cards.append(week_day_card(labels[i], is_today, inner))
 
+# Render
+st.markdown("<div id='pa-week' class='pa-week'>" + "".join(html_cards) + "</div>", unsafe_allow_html=True)
 
-# =====================================================
-# CONTROLE DE NAVEGAÇÃO: "Rolagem" ou "Paginação"
-# =====================================================
-if "semana_mode" not in st.session_state:
-    st.session_state["semana_mode"] = "Rolagem"
+# Centraliza hoje uma única vez por sessão (ou quando o botão é clicado)
+if "semana_scrolled_today" not in st.session_state:
+    st.session_state["semana_scrolled_today"] = False
 
-mode = segmented_or_radio(
-    "Navegação",
-    ["Rolagem", "Paginação"],
-    default=st.session_state["semana_mode"],
-    key="semana_mode"
-)
-
-
-# =====================================================
-# PAGINAÇÃO
-# =====================================================
-if mode == "Paginação":
-    per_page = st.select_slider("Cartões por página", options=[1,2,3], value=2, key="semana_per_page")
-
-    if "semana_page" not in st.session_state:
-        st.session_state["semana_page"] = 0
-
-    total = len(html_cards)
-    pages = max(1, (total + per_page - 1) // per_page)
-    page = min(st.session_state["semana_page"], pages - 1)
-
-    p1, p2, p3, _ = st.columns([1,1,2,6])
-    if p1.button("Anterior", use_container_width=True) and page > 0:
-        st.session_state["semana_page"] = page - 1
-        st.rerun()
-    if p2.button("Próximo", use_container_width=True) and page < pages - 1:
-        st.session_state["semana_page"] = page + 1
-        st.rerun()
-
-    p3.caption(f"Página {page+1}/{pages}")
-
-    start = page * per_page
-    end = min(start + per_page, total)
-    subset = html_cards[start:end]
-
-    st.markdown("<div class='pa-week'>" + "".join(subset) + "</div>", unsafe_allow_html=True)
-    st.stop()
-
-
-# =====================================================
-# MODO ROLAGEM: Setas + Hoje + Drag‑to‑scroll
-# =====================================================
-c1, c2, c3, c4 = st.columns([1,1,1,6])
-left = c1.button("←", use_container_width=True)
-today_btn = c2.button("Ir para Hoje", use_container_width=True)
-right = c3.button("→", use_container_width=True)
-
-st.markdown("<div id='pa-week-container' class='pa-week'>" + "".join(html_cards) + "</div>", unsafe_allow_html=True)
-
-# Drag‑to‑scroll (desktop + mobile)
-st.markdown("""
-<script>
-(function() {
-  const cont = document.getElementById('pa-week-container');
-  if (!cont) return;
-
-  let isDown = false;
-  let startX, scrollLeft;
-
-  const start = (e) => {
-    isDown = true;
-    startX = (e.touches ? e.touches[0].pageX : e.pageX) - cont.offsetLeft;
-    scrollLeft = cont.scrollLeft;
-  };
-
-  const end = () => { isDown = false; };
-
-  const move = (e) => {
-    if (!isDown) return;
-    e.preventDefault();
-    const x = (e.touches ? e.touches[0].pageX : e.pageX) - cont.offsetLeft;
-    const walk = x - startX;
-    cont.scrollLeft = scrollLeft - walk;
-  };
-
-  cont.addEventListener('mousedown', start);
-  cont.addEventListener('mouseleave', end);
-  cont.addEventListener('mouseup', end);
-  cont.addEventListener('mousemove', move);
-
-  cont.addEventListener('touchstart', start, {passive: true});
-  cont.addEventListener('touchend', end, {passive: true});
-  cont.addEventListener('touchmove', move, {passive: false});
-})();
-</script>
-""", unsafe_allow_html=True)
-
-
-# Setas e Ir para Hoje
-if left:
+if go_today or not st.session_state["semana_scrolled_today"]:
     st.markdown("""
     <script>
-      const cont = document.getElementById('pa-week-container');
-      if (cont) cont.scrollBy({left: -360, behavior:'smooth'});
-    </script>
-    """, unsafe_allow_html=True)
-
-if right:
-    st.markdown("""
-    <script>
-      const cont = document.getElementById('pa-week-container');
-      if (cont) cont.scrollBy({left: 360, behavior:'smooth'});
-    </script>
-    """, unsafe_allow_html=True)
-
-if today_btn:
-    st.markdown("""
-    <script>
-      const cont = document.getElementById('pa-week-container');
+      const cont = document.getElementById('pa-week');
       if (cont) {
-        const t = cont.querySelector('.pa-day--today');
-        if (t) {
-          const off = t.offsetLeft - (cont.clientWidth/2 - t.clientWidth/2);
-          cont.scrollTo({left: off, behavior:'smooth'});
+        const today = cont.querySelector('.pa-day--today');
+        if (today) {
+          const off = today.offsetLeft - (cont.clientWidth/2 - today.clientWidth/2);
+          cont.scrollTo({ left: off, behavior: 'smooth' });
         }
       }
     </script>
     """, unsafe_allow_html=True)
+    st.session_state["semana_scrolled_today"] = True
