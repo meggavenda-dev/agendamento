@@ -1,10 +1,22 @@
 import streamlit as st
 from datetime import datetime, timedelta, timezone, time as dtime
 import pytz
-from core.auth import require_auth
-from core.supa import supabase_user
-from core.queries import get_profile
-from core.ui import load_css
+
+# Fallback de import para ambientes que não reconhecem o pacote core
+try:
+    from core.auth import require_auth
+    from core.supa import supabase_user
+    from core.queries import get_profile
+    from core.ui import load_css
+except ImportError:
+    import os, sys
+    APP_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if APP_ROOT not in sys.path:
+        sys.path.insert(0, APP_ROOT)
+    from core.auth import require_auth
+    from core.supa import supabase_user
+    from core.queries import get_profile
+    from core.ui import load_css
 
 st.set_page_config(page_title="Criar • PulseAgenda", layout="wide")
 
