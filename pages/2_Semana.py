@@ -1,9 +1,22 @@
+# pages/2_Semana.py
 import streamlit as st
 from datetime import datetime, timedelta, timezone
-from core.auth import require_auth
-from core.supa import supabase_user
-from core.queries import fetch_semana, get_profile, week_range_for_tz
-from core.ui import load_css, week_day_card, week_item_row
+
+# Fallback de import para ambientes que não reconhecem o pacote core
+try:
+    from core.auth import require_auth
+    from core.supa import supabase_user
+    from core.queries import fetch_semana, get_profile, week_range_for_tz
+    from core.ui import load_css, week_day_card, week_item_row
+except ImportError:
+    import os, sys
+    APP_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if APP_ROOT not in sys.path:
+        sys.path.insert(0, APP_ROOT)
+    from core.auth import require_auth
+    from core.supa import supabase_user
+    from core.queries import fetch_semana, get_profile, week_range_for_tz
+    from core.ui import load_css, week_day_card, week_item_row
 
 st.set_page_config(page_title="Semana • PulseAgenda", layout="wide")
 
@@ -16,11 +29,9 @@ load_css(focus_mode=focus)
 
 st.title("Semana")
 
-# Botão único para centralizar hoje
 col_today, _ = st.columns([1,6])
 go_today = col_today.button("Ir para Hoje", use_container_width=True)
 
-# Carrega e organiza
 items = fetch_semana(sb, uid, tz_name)
 start_local, _, _, _, tz = week_range_for_tz(tz_name)
 week_days = [start_local + timedelta(days=i) for i in range(7)]
@@ -39,7 +50,6 @@ for it in items:
     if key in bucket:
         bucket[key].append((dt_local, it))
 
-# Ordenação priorizando prioridade e horário
 for k in bucket:
     bucket[k].sort(key=lambda x: (x[1].get("priority",3), x[0]))
 
@@ -60,10 +70,9 @@ for i, d in enumerate(week_days):
         inner = "".join(rows)
     html_cards.append(week_day_card(labels[i], is_today, inner))
 
-# Render
 st.markdown("<div id='pa-week' class='pa-week'>" + "".join(html_cards) + "</div>", unsafe_allow_html=True)
 
-# Centraliza hoje uma única vez por sessão (ou quando o botão é clicado)
+# Centralizar HOJE uma única vez por sessão (ou quando o botão é clicado)
 if "semana_scrolled_today" not in st.session_state:
     st.session_state["semana_scrolled_today"] = False
 
