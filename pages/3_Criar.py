@@ -1,38 +1,25 @@
-# pages/3_Criar.py
+# pages/3_Criar.py — cabeçalho com fallback de import
+import os
+import sys
 import streamlit as st
 from datetime import datetime, timedelta, timezone, time as dtime
 import pytz
 
-# Fallback de import para ambientes que não reconhecem o pacote core
-try:
-    from core.auth import require_auth
-    from core.supa import supabase_user
-    from core.queries import get_profile
-    from core.ui import load_css
-except ImportError:
-    import os, sys
-    APP_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    if APP_ROOT not in sys.path:
-        sys.path.insert(0, APP_ROOT)
-    from core.auth import require_auth
-    from core.supa import supabase_user
-    from core.queries import get_profile
-    from core.ui import load_css
+# -----------------------------------------------------
+# Fallback de import: garante que 'core' está no sys.path
+# -----------------------------------------------------
+# 1) Calcula o diretório raiz do app (pai de 'pages')
+APP_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-st.set_page_config(page_title="Criar • PulseAgenda", layout="wide")
+# 2) Insere no sys.path se ainda não estiver
+if APP_ROOT not in sys.path:
+    sys.path.insert(0, APP_ROOT)
 
-uid = require_auth()
-sb = supabase_user()
-prof = get_profile(sb, uid) or {}
-
-tz_name = prof.get("timezone", "America/Sao_Paulo")
-focus = (prof.get("theme") == "focus")
-load_css(focus_mode=focus)
-
-try:
-    tz = pytz.timezone(tz_name)
-except Exception:
-    tz = pytz.timezone("America/Sao_Paulo")
+# 3) Agora podemos importar com segurança os módulos de 'core'
+from core.auth import require_auth
+from core.supa import supabase_user
+from core.queries import get_profile
+from core.ui import load_css
 
 st.title("Criar")
 
