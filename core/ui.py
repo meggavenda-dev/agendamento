@@ -4,54 +4,46 @@ from datetime import datetime, timezone
 import pytz
 
 def load_css(path: str = "assets/zen.css", focus_mode: bool = False):
-    # Carrega CSS e ativa tema focus (alto contraste claro) se necessário.
     try:
         with open(path, "r", encoding="utf-8") as f:
-            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+            st.markdown("<style>" + f.read() + "</style>", unsafe_allow_html=True)
     except FileNotFoundError:
         pass
     if focus_mode:
         st.markdown("<script>document.body.classList.add('theme-focus');</script>", unsafe_allow_html=True)
 
 def priority_label(p: int) -> str:
-    return {1: "Urgente", 2: "Importante", 3: "Normal", 4: "Baixa"}.get(int(p or 3), "Normal")
+    return {1:"Urgente",2:"Importante",3:"Normal",4:"Baixa"}.get(int(p or 3), "Normal")
 
 def priority_class(p: int) -> str:
-    return {1: "badge-urgent", 2: "badge-warn", 3: "badge-accent", 4: "badge-ok"}.get(int(p or 3), "badge-accent")
+    return {1:"badge-urgent",2:"badge-warn",3:"badge-accent",4:"badge-ok"}.get(int(p or 3), "badge-accent")
 
 def _parse_iso(iso: str):
-    if not iso:
-        return None
+    if not iso: return None
     try:
-        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+        dt = datetime.fromisoformat(iso.replace("Z","+00:00"))
+        if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except Exception:
         return None
 
 def fmt_dt(iso: str, tz_name: str = "America/Sao_Paulo") -> str:
-    if not iso:
-        return ""
+    if not iso: return ""
     dt = _parse_iso(iso)
-    if not dt:
-        return str(iso)
+    if not dt: return str(iso)
     try:
         tz = pytz.timezone(tz_name) if tz_name else pytz.timezone("America/Sao_Paulo")
     except Exception:
         tz = pytz.timezone("America/Sao_Paulo")
-    dt_local = dt.astimezone(tz)
-    return dt_local.strftime("%d/%m %H:%M")
+    return dt.astimezone(tz).strftime("%d/%m %H:%M")
 
 def item_card(item: dict, tz_name: str = "America/Sao_Paulo"):
-    # Card visual consistente para itens (Agora/Semana).
     due_txt = fmt_dt(item.get("due_at") or item.get("start_at"), tz_name)
     rec = (item.get("recurrence") or "none").lower()
     rec_html = f"<span class='badge'>rec: {rec}</span>" if rec != "none" else ""
-    pr_cls = priority_class(item.get("priority", 3))
-    pr_lab = priority_label(item.get("priority", 3))
+    pr_cls = priority_class(item.get("priority",3))
+    pr_lab = priority_label(item.get("priority",3))
     notes = (item.get("notes") or "").strip()
-
     html = (
         "<div class='pa-card'>"
         + f"<div class='pa-card__title'>{item.get('title','')}</div>"
@@ -90,13 +82,11 @@ def week_item_row(title: str, meta: str, priority: int) -> str:
     )
 
 def actions_row(buttons):
-    # Renderiza uma linha de ações (classe pa-actions). buttons=[(label, variant, key), ...]
     st.markdown("<div class='pa-actions'>", unsafe_allow_html=True)
     cols = st.columns(len(buttons), gap="small")
     clicks = []
     for i, (label, variant, key) in enumerate(buttons):
         with cols[i]:
-            clicked = st.button(label, key=key, use_container_width=True)
-        clicks.append(clicked)
+            clicks.append(st.button(label, key=key, use_container_width=True))
     st.markdown("</div>", unsafe_allow_html=True)
     return clicks
