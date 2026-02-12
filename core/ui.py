@@ -1,16 +1,16 @@
+
 import streamlit as st
 from datetime import datetime, timezone
 import pytz
 
 def load_css(path: str = "assets/zen.css", focus_mode: bool = False):
-    """Carrega CSS e ativa tema focus (alto contraste) se necessário."""
+    # Carrega CSS e ativa tema focus (alto contraste claro) se necessário.
     try:
         with open(path, "r", encoding="utf-8") as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
     except FileNotFoundError:
         pass
     if focus_mode:
-        # injeta classe no <body> para ativar o tema alternativo (alto contraste)
         st.markdown("<script>document.body.classList.add('theme-focus');</script>", unsafe_allow_html=True)
 
 def priority_label(p: int) -> str:
@@ -44,7 +44,7 @@ def fmt_dt(iso: str, tz_name: str = "America/Sao_Paulo") -> str:
     return dt_local.strftime("%d/%m %H:%M")
 
 def item_card(item: dict, tz_name: str = "America/Sao_Paulo"):
-    """Card visual consistente para itens (Agora/Semana)."""
+    # Card visual consistente para itens (Agora/Semana).
     due_txt = fmt_dt(item.get("due_at") or item.get("start_at"), tz_name)
     rec = (item.get("recurrence") or "none").lower()
     rec_html = f"<span class='badge'>rec: {rec}</span>" if rec != "none" else ""
@@ -89,30 +89,14 @@ def week_item_row(title: str, meta: str, priority: int) -> str:
         "</div>"
     )
 
-def actions_row(buttons: list[tuple[str, str, str]]):
-    """
-    Renderiza uma linha de ações (classe pa-actions).
-    buttons: lista de tuplas (label, variant, key)
-      variant: 'primary' | 'ok' | 'danger' | '' (vazio = padrão)
-    """
+def actions_row(buttons):
+    # Renderiza uma linha de ações (classe pa-actions). buttons=[(label, variant, key), ...]
     st.markdown("<div class='pa-actions'>", unsafe_allow_html=True)
     cols = st.columns(len(buttons), gap="small")
     clicks = []
     for i, (label, variant, key) in enumerate(buttons):
-        cls = "pa-btn" + (f" pa-btn--{variant}" if variant else "")
         with cols[i]:
             clicked = st.button(label, key=key, use_container_width=True)
-            # aplica classe visual ao botão renderizado
-            st.markdown(
-                f"""
-                <script>
-                  const btns = [...document.querySelectorAll('button')];
-                  const b = btns.find(x => x.innerText.trim() === "{label}");
-                  if (b) b.className = "{cls}";
-                </script>
-                """,
-                unsafe_allow_html=True
-            )
         clicks.append(clicked)
     st.markdown("</div>", unsafe_allow_html=True)
     return clicks
