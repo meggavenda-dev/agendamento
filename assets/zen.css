@@ -1,8 +1,174 @@
+/* ========= PulseAgenda • Tema ND friendly ========= */
 
-:root { --bg:#0b0f14; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --text:#e8eef7; --muted:#a6b2c2; --accent:#7dd3fc; }
-html,body,[class*="css"]{ background:var(--bg)!important; color:var(--text)!important; }
-.block-container{ padding-top:1rem; padding-bottom:4rem; max-width:980px; }
-.card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px; margin:10px 0; }
-.badge{ display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); margin-right:6px; font-size:12px; }
-.week-scroll{ display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; }
-.week-card{ min-width:260px; }
+/* Paleta base (Zen) */
+:root {
+  --bg: #0c1116;             /* fundo escuro e “quieto” */
+  --surface: #121821;        /* cartões/painéis */
+  --surface-2: #0e141b;      /* barras/topos */
+  --border: #1d2733;
+  --text: #e7edf5;           /* texto principal */
+  --muted: #a9b5c3;          /* meta/legendas */
+  --accent: #7dd3fc;         /* ações primárias */
+  --accent-2: #6ee7b7;       /* confirmações */
+  --warn: #fb923c;           /* importante */
+  --urgent: #f87171;         /* urgente */
+  --ok: #34d399;             /* ok/sucesso */
+  --focus: #93c5fd;          /* foco de teclado */
+  --shadow: rgba(0,0,0,0.35);
+}
+
+/* Paleta alternativa (Focus = alto contraste).
+   Ative adicionando a classe .theme-focus no <body> com st.markdown.
+*/
+body.theme-focus {
+  --bg: #0a0a0a;
+  --surface: #111214;
+  --surface-2: #0c0d0f;
+  --border: #2a2f37;
+  --text: #f6f7fb;
+  --muted: #c2c8d2;
+  --accent: #60a5fa;
+  --accent-2: #34d399;
+  --warn: #f59e0b;
+  --urgent: #ef4444;
+  --ok: #10b981;
+  --focus: #93c5fd;
+  --shadow: rgba(0,0,0,0.45);
+}
+
+/* Base */
+html, body, [class*="css"] {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  letter-spacing: 0.1px;
+}
+
+/* Contêiner principal */
+.block-container {
+  padding-top: 12px;
+  padding-bottom: 56px;
+  max-width: 980px;
+}
+
+/* Títulos e seções */
+.pa-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 14px 8px 14px;
+  margin: 12px 0;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.pa-title {
+  font-weight: 700;
+  font-size: 1.08rem;
+  margin-bottom: 6px;
+}
+
+/* Cartões de item */
+.pa-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  margin: 12px 0;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.pa-card__title {
+  font-weight: 700;
+  font-size: 1.0rem;
+  margin-bottom: 6px;
+}
+.pa-card__meta {
+  color: var(--muted);
+  font-size: 0.92rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Badges (prioridade, tag, status) */
+.badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  user-select: none;
+}
+.badge-accent { color: var(--accent); }
+.badge-ok { color: var(--ok); }
+.badge-warn { color: var(--warn); }
+.badge-urgent { color: var(--urgent); }
+
+/* Linha de ações “tocável” (scroll horizontal no mobile) */
+.pa-actions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 2px 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.pa-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 44px;          /* alvos grandes */
+  min-width: 84px;           /* legível e tocável */
+  font-size: 0.95rem;
+  transition: background .12s ease, border-color .12s ease, transform .06s ease;
+}
+.pa-btn:hover { background: #161e28; }
+.pa-btn:active { transform: translateY(1px); }
+.pa-btn--primary { border-color: #2b3b4f; color: var(--accent); }
+.pa-btn--danger  { border-color: #4a2d33; color: var(--urgent); }
+.pa-btn--ok      { border-color: #2a3f38; color: var(--ok); }
+
+/* Semana (cards com snap) */
+.pa-week {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
+}
+.pa-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  min-width: 300px;
+  scroll-snap-align: center;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.pa-day--today { outline: 2px solid var(--accent); }
+.pa-day__header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.pa-day__title { font-weight: 800; letter-spacing: 0.3px; }
+.pa-day__today { color: var(--accent); font-size: 0.9rem; }
+.pa-day__empty { color: var(--muted); padding: 12px 4px; }
+
+/* Acessibilidade / foco */
+*:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Redução de movimento (animações) */
+@media (prefers-reduced-motion: reduce) {
+  .pa-btn, .pa-card, .pa-section, .pa-day { transition: none !important; }
+}
+
+/* Compactação extra para telas muito pequenas */
+@media (max-width: 380px) {
+  .pa-btn { min-width: 78px; font-size: 0.9rem; padding: 9px 10px; }
+  .pa-day { min-width: 280px; }
+}
