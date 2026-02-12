@@ -1,0 +1,8 @@
+
+:root { --bg:#0b0f14; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --text:#e8eef7; --muted:#a6b2c2; --accent:#7dd3fc; }
+html,body,[class*="css"]{ background:var(--bg)!important; color:var(--text)!important; }
+.block-container{ padding-top:1rem; padding-bottom:4rem; max-width:980px; }
+.card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px; margin:10px 0; }
+.badge{ display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); margin-right:6px; font-size:12px; }
+.week-scroll{ display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; }
+.week-card{ min-width:260px; }
