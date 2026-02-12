@@ -1,9 +1,10 @@
-/* ========= PulseAgenda • Tema Zen (claro) + Scrollbar ========= */
+/* assets/zen.css */
+/* ========= PulseAgenda • Tema Zen (claro) ========= */
 :root {
-  --bg: #f7fafc; --surface: #ffffff; --surface-2: #f2f6f9; --border: #dbe7f0;
-  --text: #0f1720; --muted: #5b6b7c; --accent: #1f9ee0; --accent-2: #24b8a0;
-  --warn: #e68629; --urgent: #dc4f4f; --ok: #0fa97a; --focus: #7aa7ff;
-  --shadow: 0 6px 18px rgba(16,24,40,.08);
+  --bg:#f7fafc; --surface:#ffffff; --surface-2:#f2f6f9; --border:#dbe7f0;
+  --text:#0f1720; --muted:#5b6b7c; --accent:#1f9ee0; --accent-2:#24b8a0;
+  --warn:#e68629; --urgent:#dc4f4f; --ok:#0fa97a; --focus:#7aa7ff;
+  --shadow:0 6px 18px rgba(16,24,40,.08);
 }
 body.theme-focus {
   --bg:#f5f7fb; --surface:#ffffff; --surface-2:#edf2fa; --border:#c9d7ea;
@@ -11,17 +12,19 @@ body.theme-focus {
   --warn:#cc7a1c; --urgent:#c53c3c; --ok:#0a8765; --focus:#5b8bff;
   --shadow:0 8px 24px rgba(16,24,40,.12);
 }
+
 html, body, [class*="css"] {
-  background: var(--bg) !important; color: var(--text) !important;
+  background:var(--bg)!important; color:var(--text)!important;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
                "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
 }
 .block-container { padding-top:14px; padding-bottom:56px; max-width:980px; }
 
-.pa-section, .pa-card { background: var(--surface); border:1px solid var(--border);
+.pa-section, .pa-card { background:var(--surface); border:1px solid var(--border);
   border-radius:16px; box-shadow:var(--shadow); }
 .pa-section { padding:14px 14px 10px; margin:12px 0; }
 .pa-card    { padding:14px; margin:12px 0; }
+
 .pa-title { font-weight:700; font-size:1.08rem; margin-bottom:6px; }
 .pa-card__title { font-weight:700; font-size:1.02rem; margin-bottom:6px; }
 .pa-card__meta  { color:var(--muted); font-size:.95rem; display:flex; flex-wrap:wrap; gap:6px; }
