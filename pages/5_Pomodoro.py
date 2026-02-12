@@ -10,7 +10,6 @@ st.set_page_config(page_title="Pomodoro • PulseAgenda", layout="wide")
 uid = require_auth()
 sb = supabase_user()
 
-# Tema
 try:
     prof = sb.table("profiles").select("theme").eq("id", uid).single().execute().data or {}
     focus = (prof.get("theme") == "focus")
@@ -21,7 +20,6 @@ load_css(focus_mode=focus)
 st.title("Pomodoro")
 st.caption("Foco em um item por vez")
 
-# Busca resiliente: seleciona campos explicitamente e ordena de forma compatível
 try:
     items = (
         sb.table("items")
@@ -37,8 +35,7 @@ except Exception as e:
     items = []
 
 if not items:
-    st.info("Sem itens pendentes.")
-    st.stop()
+    st.info("Sem itens pendentes."); st.stop()
 
 item_map = {f"{it['title']} ({it['id'][:6]})": it["id"] for it in items}
 choice = st.selectbox("Escolha o item", list(item_map.keys()))
@@ -55,43 +52,32 @@ if st.button("Iniciar"):
     }
     st.experimental_rerun()
 
-session = st.session_state.get("pomodoro")
-if session:
-    start = datetime.fromisoformat(session["start"]) if session.get("start") else None
-    phase = session.get("phase","work")
-    dur = session["work_min"] if phase == "work" else session.get("break_min", 0)
+s = st.session_state.get("pomodoro")
+if s:
+    start = datetime.fromisoformat(s["start"]) if s.get("start") else None
+    phase = s.get("phase","work")
+    dur = s["work_min"] if phase == "work" else s.get("break_min", 0)
     end = start + timedelta(minutes=dur)
     now = datetime.now(timezone.utc)
-    remaining = max(0, int((end - now).total_seconds()))
-    mm = remaining // 60
-    ss = remaining % 60
+    rem = max(0, int((end-now).total_seconds()))
+    mm = rem // 60; ss = rem % 60
     st.subheader(f"Fase: {'Foco' if phase=='work' else 'Pausa'} — {mm:02d}:{ss:02d}")
     st.caption("Atualize a página periodicamente para ver a contagem.")
 
-    if remaining == 0:
+    if rem == 0:
         if phase == "work":
             try:
-                it = sb.table("items").select("spent_minutes").eq("id", session["item_id"]).single().execute().data
-                spent = int(it.get("spent_minutes") or 0)
+                it = sb.table("items").select("spent_minutes").eq("id",s["item_id"]).single().execute().data; spent=int(it.get("spent_minutes") or 0)
+                sb.table("items").update({"spent_minutes": spent + int(s["work_min"]) }).eq("id",s["item_id"]).eq("user_id",uid).execute()
             except Exception:
-                spent = 0
-            new_spent = spent + int(session["work_min"])
-            sb.table("items").update({"spent_minutes": new_spent}).eq("id", session["item_id"]).eq("user_id", uid).execute()
-            session["phase"] = "break" if session.get("break_min",0) > 0 else "done"
-            session["start"] = datetime.now(timezone.utc).isoformat()
-            st.session_state["pomodoro"] = session
-            st.success("Foco concluído. Tempo contabilizado.")
+                pass
+            s["phase"] = "break" if s.get("break_min",0) > 0 else "done"; s["start"] = datetime.now(timezone.utc).isoformat(); st.session_state["pomodoro"]=s; st.success("Foco concluído. Tempo contabilizado.")
         else:
-            session["phase"] = "done"
-            st.session_state["pomodoro"] = session
-            st.info("Pausa concluída.")
+            s["phase"] = "done"; st.session_state["pomodoro"]=s; st.info("Pausa concluída.")
 
     if phase == "done":
-        c1, c2 = st.columns([1,1])
+        c1,c2 = st.columns(2)
         if c1.button("Concluir item"):
-            sb.table("items").update({"status":"done"}).eq("id", session["item_id"]).eq("user_id", uid).execute()
-            st.session_state.pop("pomodoro", None)
-            st.success("Item concluído")
+            sb.table("items").update({"status":"done"}).eq("id",s["item_id"]).eq("user_id",uid).execute(); st.session_state.pop("pomodoro",None); st.success("Item concluído")
         if c2.button("Nova sessão"):
-            st.session_state.pop("pomodoro", None)
-            st.experimental_rerun()
+            st.session_state.pop("pomodoro",None); st.experimental_rerun()
