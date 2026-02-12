@@ -1,3 +1,4 @@
+# core/supa.py
 import os, json, uuid
 import streamlit as st
 from supabase import create_client
@@ -100,11 +101,10 @@ def supabase_user():
 
     try:
         # Tenta aplicar a sessão; se access_token expirou,
-        # supabase-py cuidará via auto-refresh em seguida
+        # supabase-py pode cuidar via auto-refresh em seguida
         if access_token:
             sb.auth.set_session(access_token, refresh_token)
         else:
-            # Se só refresh_token, tenta refresh explícito
             sb.auth.refresh_session()
 
         # Pega sessão normalizada/atualizada
