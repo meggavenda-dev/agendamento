@@ -10,7 +10,7 @@ def load_css(path: str = "assets/zen.css", focus_mode: bool = False):
     except FileNotFoundError:
         pass
     if focus_mode:
-        # injeta classe no <body> para ativar o tema alternativo
+        # injeta classe no <body> para ativar o tema alternativo (alto contraste)
         st.markdown("<script>document.body.classList.add('theme-focus');</script>", unsafe_allow_html=True)
 
 def priority_label(p: int) -> str:
@@ -93,7 +93,7 @@ def actions_row(buttons: list[tuple[str, str, str]]):
     """
     Renderiza uma linha de ações (classe pa-actions).
     buttons: lista de tuplas (label, variant, key)
-      variant: 'primary' | 'ok' | 'danger' | '' (vasio = padrão)
+      variant: 'primary' | 'ok' | 'danger' | '' (vazio = padrão)
     """
     st.markdown("<div class='pa-actions'>", unsafe_allow_html=True)
     cols = st.columns(len(buttons), gap="small")
@@ -102,10 +102,17 @@ def actions_row(buttons: list[tuple[str, str, str]]):
         cls = "pa-btn" + (f" pa-btn--{variant}" if variant else "")
         with cols[i]:
             clicked = st.button(label, key=key, use_container_width=True)
-            # aplica classe via markdown (hack leve)
-            st.markdown(f"<style>[data-testid='baseButton-secondaryFormSubmit-{key}'] .st-emotion-cache-ue6h4q {{display:none}}</style>", unsafe_allow_html=True)
-            st.markdown(f"<style>[data-testid='baseButton-secondaryFormSubmit-{key}'] button {{}} </style>", unsafe_allow_html=True)
-            st.markdown(f"<script>const btn=document.querySelector(\"button[k='{key}']\"); if(btn){{btn.classList='{cls}';}}</script>", unsafe_allow_html=True)
+            # aplica classe visual ao botão renderizado
+            st.markdown(
+                f"""
+                <script>
+                  const btns = [...document.querySelectorAll('button')];
+                  const b = btns.find(x => x.innerText.trim() === "{label}");
+                  if (b) b.className = "{cls}";
+                </script>
+                """,
+                unsafe_allow_html=True
+            )
         clicks.append(clicked)
     st.markdown("</div>", unsafe_allow_html=True)
     return clicks
