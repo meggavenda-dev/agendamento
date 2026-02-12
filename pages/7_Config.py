@@ -60,4 +60,3 @@ if salvar:
         st.success("Salvo. Recarregue a página para aplicar o tema.")
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
-``
