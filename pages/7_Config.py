@@ -1,3 +1,4 @@
+
 import streamlit as st
 from core.ui import load_css
 from core.auth import require_auth, logout
@@ -8,7 +9,6 @@ st.set_page_config(page_title="Config • PulseAgenda", layout="wide")
 uid = require_auth()
 sb = supabase_user()
 
-# carregar tema atual antes de renderizar
 try:
     prof0 = sb.table("profiles").select("theme").eq("id", uid).single().execute().data or {}
     focus = (prof0.get("theme") == "focus")
@@ -20,13 +20,12 @@ st.title("Configurações")
 st.caption("Tema, notificações e automações.")
 
 with st.sidebar:
-    if st.button("Sair", use_container_width=True):
-        logout()
+    if st.button("Sair", use_container_width=True): logout()
 
 try:
-    prof = sb.table("profiles").select("*").eq("id", uid).single().execute().data
+    prof=sb.table("profiles").select("*").eq("id",uid).single().execute().data
 except Exception:
-    prof = {}
+    prof={}
 
 with st.form("cfg"):
     st.subheader("Notificações")
@@ -45,18 +44,8 @@ with st.form("cfg"):
     salvar = st.form_submit_button("Salvar", use_container_width=True)
 
 if salvar:
-    payload = {
-        "id": uid,
-        "timezone": (timezone.strip() or "America/Sao_Paulo"),
-        "email_notifications": bool(email_notifications),
-        "whatsapp_notifications": bool(whatsapp_notifications),
-        "whatsapp_number": (whatsapp_number.strip() or None),
-        "theme": theme,
-        "auto_rollover_enabled": bool(auto_roll),
-        "auto_bump_priority": bool(auto_bump),
-    }
+    payload={"id":uid,"timezone":(timezone.strip() or "America/Sao_Paulo"),"email_notifications":bool(email_notifications),"whatsapp_notifications":bool(whatsapp_notifications),"whatsapp_number":(whatsapp_number.strip() or None),"theme":theme,"auto_rollover_enabled":bool(auto_roll),"auto_bump_priority":bool(auto_bump)}
     try:
-        sb.table("profiles").upsert(payload).execute()
-        st.success("Salvo. Recarregue a página para aplicar o tema.")
+        sb.table("profiles").upsert(payload).execute(); st.success("Salvo. Recarregue a página para aplicar o tema.")
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
