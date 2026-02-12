@@ -1,3 +1,4 @@
+
 import streamlit as st
 from datetime import datetime, timedelta, timezone
 import pytz
@@ -21,22 +22,13 @@ except Exception:
     tz = pytz.timezone("America/Sao_Paulo")
 
 st.title("Foco do Dia")
-today_start = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
-today_end = today_start + timedelta(days=1)
-s_utc = today_start.astimezone(timezone.utc).isoformat()
-e_utc = today_end.astimezone(timezone.utc).isoformat()
-
-items_today = (
-    sb.table("items").select("*")
-    .eq("user_id", uid).neq("status", "done")
-    .gte("due_at", s_utc).lt("due_at", e_utc)
-    .order("priority", desc=False).order("due_at", desc=False)
-    .execute().data or []
-)
-
-if not items_today:
+start = datetime.now(tz).replace(hour=0,minute=0,second=0,microsecond=0)
+end = start + timedelta(days=1)
+s_iso=start.astimezone(timezone.utc).isoformat(); e_iso=end.astimezone(timezone.utc).isoformat()
+items=(sb.table("items").select("*").eq("user_id",uid).neq("status","done").gte("due_at",s_iso).lt("due_at",e_iso).order("priority",desc=False).order("due_at",desc=False).execute().data or [])
+if not items:
     st.info("Sem itens para hoje. Planeje no 'Criar' ou 'Semana'.")
 else:
     st.subheader("Top 3")
-    for it in items_today[:3]:
+    for it in items[:3]:
         st.write(f"- {it['title']} ({priority_label(it.get('priority',3))})")
