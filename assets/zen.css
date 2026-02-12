@@ -2,24 +2,22 @@
 
 /* Paleta base (Zen) */
 :root {
-  --bg: #0c1116;             /* fundo escuro e “quieto” */
-  --surface: #121821;        /* cartões/painéis */
-  --surface-2: #0e141b;      /* barras/topos */
+  --bg: #0c1116;
+  --surface: #121821;
+  --surface-2: #0e141b;
   --border: #1d2733;
-  --text: #e7edf5;           /* texto principal */
-  --muted: #a9b5c3;          /* meta/legendas */
-  --accent: #7dd3fc;         /* ações primárias */
-  --accent-2: #6ee7b7;       /* confirmações */
-  --warn: #fb923c;           /* importante */
-  --urgent: #f87171;         /* urgente */
-  --ok: #34d399;             /* ok/sucesso */
-  --focus: #93c5fd;          /* foco de teclado */
+  --text: #e7edf5;
+  --muted: #a9b5c3;
+  --accent: #7dd3fc;
+  --accent-2: #6ee7b7;
+  --warn: #fb923c;
+  --urgent: #f87171;
+  --ok: #34d399;
+  --focus: #93c5fd;
   --shadow: rgba(0,0,0,0.35);
 }
 
-/* Paleta alternativa (Focus = alto contraste).
-   Ative adicionando a classe .theme-focus no <body> com st.markdown.
-*/
+/* Paleta alternativa (Focus = alto contraste). */
 body.theme-focus {
   --bg: #0a0a0a;
   --surface: #111214;
@@ -51,7 +49,7 @@ html, body, [class*="css"] {
   max-width: 980px;
 }
 
-/* Títulos e seções */
+/* Seções (blocos) */
 .pa-section {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -88,7 +86,7 @@ html, body, [class*="css"] {
   gap: 6px;
 }
 
-/* Badges (prioridade, tag, status) */
+/* Badges */
 .badge {
   display: inline-block;
   padding: 6px 10px;
@@ -103,7 +101,7 @@ html, body, [class*="css"] {
 .badge-warn { color: var(--warn); }
 .badge-urgent { color: var(--urgent); }
 
-/* Linha de ações “tocável” (scroll horizontal no mobile) */
+/* Linha de ações (scroll horizontal no mobile) */
 .pa-actions {
   display: flex;
   gap: 8px;
@@ -118,8 +116,8 @@ html, body, [class*="css"] {
   color: var(--text);
   border-radius: 12px;
   padding: 10px 12px;
-  min-height: 44px;          /* alvos grandes */
-  min-width: 84px;           /* legível e tocável */
+  min-height: 44px;     /* alvos grandes */
+  min-width: 84px;      /* legível e tocável */
   font-size: 0.95rem;
   transition: background .12s ease, border-color .12s ease, transform .06s ease;
 }
@@ -162,12 +160,12 @@ html, body, [class*="css"] {
   border-radius: 6px;
 }
 
-/* Redução de movimento (animações) */
+/* Redução de movimento */
 @media (prefers-reduced-motion: reduce) {
   .pa-btn, .pa-card, .pa-section, .pa-day { transition: none !important; }
 }
 
-/* Compactação extra para telas muito pequenas */
+/* Telas muito pequenas */
 @media (max-width: 380px) {
   .pa-btn { min-width: 78px; font-size: 0.9rem; padding: 9px 10px; }
   .pa-day { min-width: 280px; }
