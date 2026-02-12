@@ -1,3 +1,4 @@
+
 import streamlit as st
 from datetime import datetime, timedelta, timezone
 from core.auth import require_auth
@@ -20,8 +21,20 @@ load_css(focus_mode=focus)
 st.title("Pomodoro")
 st.caption("Foco em um item por vez")
 
-items = (sb.table("items").select("id,title,estimated_minutes,spent_minutes")
-         .eq("user_id", uid).neq("status","done").order("priority").execute().data or [])
+# Busca resiliente: seleciona campos explicitamente e ordena de forma compatível
+try:
+    items = (
+        sb.table("items")
+        .select("id,title,estimated_minutes,spent_minutes,priority")
+        .eq("user_id", uid)
+        .neq("status","done")
+        .order("priority", desc=False)
+        .execute()
+        .data or []
+    )
+except Exception as e:
+    st.error(f"Falha ao carregar itens: {e}")
+    items = []
 
 if not items:
     st.info("Sem itens pendentes.")
