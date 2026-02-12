@@ -1,6 +1,6 @@
 
 import streamlit as st
-from core.supa import supabase_anon, supabase_user, allowed_email
+from core.supa import supabase_anon, allowed_email
 
 def _n(email: str) -> str:
     return (email or "").strip().lower()
