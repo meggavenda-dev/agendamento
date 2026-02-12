@@ -1,5 +1,6 @@
+
 import streamlit as st
-import datetime, pytz
+import datetime
 from core.auth import require_auth
 from core.supa import supabase_user
 from core.queries import fetch_agora, get_profile
@@ -23,51 +24,37 @@ if not items:
     st.stop()
 
 def _parse_due(due_str: str):
-    if not due_str:
-        return None
+    if not due_str: return None
     dt = datetime.datetime.fromisoformat(due_str.replace("Z","+00:00"))
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    if dt.tzinfo is None: dt = dt.replace(tzinfo=datetime.timezone.utc)
     return dt
 
 def _to_iso_utc(dt: datetime.datetime):
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    if dt is None: return None
+    if dt.tzinfo is None: dt = dt.replace(tzinfo=datetime.timezone.utc)
     return dt.astimezone(datetime.timezone.utc).replace(second=0,microsecond=0).isoformat()
 
 for it in items:
     item_card(it, tz_name)
-
-    clicked = actions_row([
+    c_done, c_delay, c_edit, c_del = actions_row([
         ("Concluir", "ok",     f"done_{it['id']}"),
         ("+1 dia",  "primary", f"delay_{it['id']}"),
-        ("Editar",  "",        f"edit_{it['id']}"),
-        ("Excluir", "danger",  f"del_{it['id']}"),
+        ("Editar",  "",        f"edit_{it['id']}") ,
+        ("Excluir", "danger",  f"del_{it['id']}") ,
     ])
-    c_done, c_delay, c_edit, c_del = clicked
-
     if c_done:
-        sb.table("items").update({"status":"done"}).eq("id", it["id"]).eq("user_id", uid).execute()
-        st.rerun()
-
+        sb.table("items").update({"status":"done"}).eq("id", it["id"]).eq("user_id", uid).execute(); st.rerun()
     if c_delay:
         due = it.get("due_at")
         if due:
             dt_utc = _parse_due(due) + datetime.timedelta(days=1)
-            sb.table("items").update({"due_at": _to_iso_utc(dt_utc)}).eq("id", it["id"]).eq("user_id", uid).execute()
-            st.rerun()
+            sb.table("items").update({"due_at": _to_iso_utc(dt_utc)}).eq("id", it["id"]).eq("user_id", uid).execute(); st.rerun()
         else:
             st.warning("Sem prazo para adiar.")
-
     if c_edit:
         st.session_state[f"editing_{it['id']}"] = True
-
     if c_del:
-        sb.table("items").delete().eq("id", it["id"]).eq("user_id", uid).execute()
-        st.rerun()
-
+        sb.table("items").delete().eq("id", it["id"]).eq("user_id", uid).execute(); st.rerun()
     if st.session_state.get(f"editing_{it['id']}"):
         st.markdown("<div class='pa-section'>", unsafe_allow_html=True)
         st.caption("Edição rápida")
@@ -75,11 +62,7 @@ for it in items:
         save = st.button("Salvar", key=f"save_{it['id']}")
         cancel = st.button("Cancelar", key=f"cancel_{it['id']}")
         if save:
-            sb.table("items").update({"title": new_title.strip() or it.get("title","Item")}).eq("id", it["id"]).eq("user_id", uid).execute()
-            st.session_state.pop(f"editing_{it['id']}", None)
-            st.success("Atualizado")
-            st.rerun()
+            sb.table("items").update({"title": new_title.strip() or it.get("title","Item")}).eq("id", it["id"]).eq("user_id", uid).execute(); st.session_state.pop(f"editing_{it['id']}", None); st.success("Atualizado"); st.rerun()
         if cancel:
-            st.session_state.pop(f"editing_{it['id']}", None)
-            st.rerun()
+            st.session_state.pop(f"editing_{it['id']}", None); st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
