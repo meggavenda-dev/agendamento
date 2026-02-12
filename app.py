@@ -5,10 +5,13 @@ from core.supa import supabase_user
 from core.queries import get_profile
 
 st.set_page_config(page_title="PulseAgenda", layout="wide")
-uid = require_auth(); sb = supabase_user()
+
+uid = require_auth()
+sb = supabase_user()
 prof = get_profile(sb, uid) or {}
 focus = (prof.get("theme") == "focus")
 load_css(focus_mode=focus)
 
 st.title("PulseAgenda")
 st.caption("Seu ritmo. Seu foco. Sua agenda.")
+st.info("Use o menu lateral: Agora | Semana | Criar | Foco do Dia | Pomodoro | Entrada Rápida | Config | Exportar")
