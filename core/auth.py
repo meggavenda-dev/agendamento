@@ -69,7 +69,13 @@ def login_box():
         except Exception as e:
             st.error(f"Falha no login: {e}")
 
+
 def require_auth():
+    # *** restaura sessão antes de checar permissões ***
+    sb = supabase_user()
+
+    # segue sua lógica de autorização
+    from core.auth import current_user_email, current_user_id, login_box  # evita import circular no topo
     if allowed_email():
         if current_user_email() != allowed_email():
             login_box(); st.stop()
