@@ -2,19 +2,18 @@
 import os
 import streamlit as st
 
-# Caminho para o CSS do tema
 _ASSETS_CSS = os.path.join("assets", "zen.css")
 
 def load_css(focus_mode: bool = False):
     """
-    Carrega o CSS de tema e aplica classe opcional 'theme-focus' no <body>.
+    Carrega o CSS do tema e aplica classe opcional 'theme-focus' no <body>.
     """
     css = ""
     try:
         with open(_ASSETS_CSS, "r", encoding="utf-8") as f:
             css = f.read()
     except Exception:
-        # fallback simples caso o arquivo não exista
+        # fallback leve se o CSS não estiver disponível
         css = ":root{--bg:#fff;--text:#111} body{background:var(--bg);color:var(--text)}"
 
     body_class = "theme-focus" if focus_mode else ""
@@ -24,17 +23,11 @@ def load_css(focus_mode: bool = False):
     )
 
 def priority_label(p: int) -> str:
-    """
-    Converte prioridade numérica em rótulo.
-    """
     p = int(p or 3)
     return {1: "Alta", 2: "Média", 3: "Normal", 4: "Baixa"}.get(p, "Normal")
 
-# ---------- Componentes usados na página "Agora" ----------
+# ---------- Componentes usados em "Agora" ----------
 def item_card(item: dict, tz_name: str) -> None:
-    """
-    Renderiza um cartão simples de item (título, tag, prioridade).
-    """
     title = item.get("title", "Item")
     tag = item.get("tag", "geral")
     pr = priority_label(item.get("priority", 3))
@@ -50,7 +43,6 @@ def item_card(item: dict, tz_name: str) -> None:
 
 def actions_row(actions: list[tuple[str, str, str]]):
     """
-    Linha de botões de ação.
     actions: lista [(label, variant, key), ...]
     Retorna uma tupla de bools na mesma ordem (se foi clicado).
     """
@@ -58,7 +50,7 @@ def actions_row(actions: list[tuple[str, str, str]]):
     out = []
     for i, (label, variant, key) in enumerate(actions):
         kwargs = {}
-        # você pode mapear estilos por variant, se quiser
+        # mapear variantes se desejar
         if variant == "danger":
             kwargs["type"] = "secondary"
         elif variant in ("primary", "ok"):
@@ -66,7 +58,7 @@ def actions_row(actions: list[tuple[str, str, str]]):
         out.append(cols[i].button(label, key=key, use_container_width=True, **kwargs))
     return tuple(out)
 
-# ---------- Componentes usados na página "Semana" ----------
+# ---------- Componentes usados em "Semana" ----------
 def week_item_row(title: str, meta: str, priority: int) -> str:
     pr = priority_label(priority)
     return (
