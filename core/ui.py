@@ -1,47 +1,89 @@
+# core/ui.py
+import os
 import streamlit as st
-from core.supa import supabase_anon, allowed_email, save_session_to_file, clear_saved_session
 
-def _n(email: str) -> str:
-    return (email or "").strip().lower()
+# Caminho para o CSS do tema
+_ASSETS_CSS = os.path.join("assets", "zen.css")
 
-def logout():
+def load_css(focus_mode: bool = False):
+    """
+    Carrega o CSS de tema e aplica classe opcional 'theme-focus' no <body>.
+    """
+    css = ""
     try:
-        supabase_anon().auth.sign_out()
+        with open(_ASSETS_CSS, "r", encoding="utf-8") as f:
+            css = f.read()
     except Exception:
-        pass
-    for k in ["sb_session","sb_user","login_email"]:
-        st.session_state.pop(k, None)
-    clear_saved_session()
-    st.rerun()
+        # fallback simples caso o arquivo não exista
+        css = ":root{--bg:#fff;--text:#111} body{background:var(--bg);color:var(--text)}"
 
-def login_box():
-    st.subheader("Entrar no PulseAgenda")
-    allowed = allowed_email() or ""
-    st.caption("Acesso restrito ao e-mail permitido nas configurações.")
-    email = st.text_input("E-mail", value=allowed, disabled=bool(allowed))
-    password = st.text_input("Senha", type="password")
-    keep = st.checkbox("Manter conectado neste dispositivo", value=True)
+    body_class = "theme-focus" if focus_mode else ""
+    st.markdown(
+        f"<style>{css}</style><body class='{body_class}'></body>",
+        unsafe_allow_html=True
+    )
 
-    if st.button("Entrar", use_container_width=True):
-        if allowed and _n(email) != _n(allowed):
-            st.error("E-mail não permitido."); st.stop()
-        sb = supabase_anon()
-        try:
-            res = sb.auth.sign_in_with_password({"email": _n(email), "password": password})
-            session = getattr(res, "session", None) or (res.get("session") if isinstance(res, dict) else None)
-            user    = getattr(res, "user", None)    or (res.get("user") if isinstance(res, dict) else None)
-            if not session:
-                st.error("Falha no login: sem sessão retornada."); st.stop()
+def priority_label(p: int) -> str:
+    """
+    Converte prioridade numérica em rótulo.
+    """
+    p = int(p or 3)
+    return {1: "Alta", 2: "Média", 3: "Normal", 4: "Baixa"}.get(p, "Normal")
 
-            st.session_state["sb_session"] = session
-            st.session_state["sb_user"] = user
-            st.session_state["login_email"] = _n(email)
+# ---------- Componentes usados na página "Agora" ----------
+def item_card(item: dict, tz_name: str) -> None:
+    """
+    Renderiza um cartão simples de item (título, tag, prioridade).
+    """
+    title = item.get("title", "Item")
+    tag = item.get("tag", "geral")
+    pr = priority_label(item.get("priority", 3))
+    st.markdown(
+        f"""
+        <div class="pa-card">
+            <div class="pa-card__title">{title}</div>
+            <div class="pa-card__meta">#{tag} • {pr}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-            # >>> Persistência local no servidor
-            if keep:
-                save_session_to_file(session)
+def actions_row(actions: list[tuple[str, str, str]]):
+    """
+    Linha de botões de ação.
+    actions: lista [(label, variant, key), ...]
+    Retorna uma tupla de bools na mesma ordem (se foi clicado).
+    """
+    cols = st.columns(len(actions))
+    out = []
+    for i, (label, variant, key) in enumerate(actions):
+        kwargs = {}
+        # você pode mapear estilos por variant, se quiser
+        if variant == "danger":
+            kwargs["type"] = "secondary"
+        elif variant in ("primary", "ok"):
+            kwargs["type"] = "primary"
+        out.append(cols[i].button(label, key=key, use_container_width=True, **kwargs))
+    return tuple(out)
 
-            st.success("Login realizado")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Falha no login: {e}")
+# ---------- Componentes usados na página "Semana" ----------
+def week_item_row(title: str, meta: str, priority: int) -> str:
+    pr = priority_label(priority)
+    return (
+        f"<div class='pa-card'>"
+        f"  <div class='pa-card__title'>{title}</div>"
+        f"  <div class='pa-card__meta'>{meta} • {pr}</div>"
+        f"</div>"
+    )
+
+def week_day_card(label: str, is_today: bool, inner_html: str) -> str:
+    today_cls = " pa-day--today" if is_today else ""
+    return (
+        f"<div class='pa-day{today_cls}'>"
+        f"  <div class='pa-day__header'>"
+        f"    <div class='pa-day__title'>{label}</div>"
+        f"    {'<div class=\"pa-day__today\">HOJE</div>' if is_today else ''}"
+        f"  </div>"
+        f"{inner_html}"
+        f"</div>"
+    )
