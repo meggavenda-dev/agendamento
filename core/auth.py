@@ -5,18 +5,16 @@ from core.supa import (
     allowed_email,
     save_session_to_file,
     clear_saved_session,
-    normalize_session,   # usamos para salvar sessão normalizada
+    normalize_session,
 )
 
 def _n(email: str) -> str:
     return (email or "").strip().lower()
 
 def current_user():
-    # Primeiro tenta o sb_user normalizado
     u = st.session_state.get("sb_user")
     if u:
         return u
-    # Depois tenta extrair da sb_session (normalizada)
     sess = st.session_state.get("sb_session")
     if isinstance(sess, dict):
         return sess.get("user")
@@ -65,7 +63,6 @@ def login_box():
             if not session:
                 st.error("Falha no login: sem sessão retornada."); st.stop()
 
-            # Normaliza e salva
             norm = normalize_session(session)
             st.session_state["sb_session"] = norm
             st.session_state["sb_user"] = {
@@ -86,13 +83,9 @@ def require_auth():
     """
     Restaura sessão (se existir) e exige autenticação apenas se necessário.
     """
-    # Import local para evitar import circular
     from core.supa import supabase_user
+    supabase_user()  # restaura/normaliza a sessão
 
-    # 1) restaura/normaliza a sessão
-    supabase_user()
-
-    # 2) autorização
     if allowed_email():
         if current_user_email() != allowed_email():
             login_box(); st.stop()
@@ -100,5 +93,4 @@ def require_auth():
         if not current_user_id():
             login_box(); st.stop()
 
-    # 3) OK
     return current_user_id()
