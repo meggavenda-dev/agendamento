@@ -6,10 +6,6 @@ def now_utc():
     return datetime.now(timezone.utc)
 
 def get_profile(sb, user_id):
-    """
-    Busca perfil do usuário (timezone, tema, preferências).
-    Garante defaults úteis se não achar.
-    """
     try:
         d = (
             sb.table("profiles")
@@ -37,9 +33,6 @@ def week_range_for_tz(tz_name: str):
     return start_l, end_l, start_l.astimezone(pytz.utc), end_l.astimezone(pytz.utc), tz
 
 def fetch_agora(sb, user_id, tz_name: str = "America/Sao_Paulo"):
-    """
-    Itens atrasados, próximos 24h e prioridades (status != done).
-    """
     n = now_utc().replace(second=0, microsecond=0)
     next24 = (n + timedelta(hours=24)).replace(second=0, microsecond=0)
     n_iso = n.isoformat()
@@ -60,9 +53,6 @@ def fetch_agora(sb, user_id, tz_name: str = "America/Sao_Paulo"):
         return []
 
 def fetch_semana(sb, user_id, tz_name: str = "America/Sao_Paulo"):
-    """
-    Itens da semana atual (status != done, com due_at na semana).
-    """
     _, _, s, e, _ = week_range_for_tz(tz_name)
     s_iso = s.replace(microsecond=0).isoformat()
     e_iso = e.replace(microsecond=0).isoformat()
