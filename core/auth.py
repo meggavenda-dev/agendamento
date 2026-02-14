@@ -12,12 +12,33 @@ def _n(email: str) -> str:
     return (email or "").strip().lower()
 
 def current_user():
+    # 1) já temos cacheado?
     u = st.session_state.get("sb_user")
     if u:
         return u
+
+    # 2) tentar extrair da sessão normalizada (sb_session)
     sess = st.session_state.get("sb_session")
-    if isinstance(sess, dict):
-        return sess.get("user")
+    if isinstance(sess, dict) and sess.get("user"):
+        st.session_state["sb_user"] = sess["user"]
+        return sess["user"]
+
+    # 3) fallback robusto: pergunta ao Supabase (se houver cliente com sessão)
+    try:
+        from core.supa import supabase_user
+        sb = supabase_user()  # restaura tokens no cliente
+        resp = sb.auth.get_user()
+        user_obj = getattr(resp, "user", None) if resp else None
+        if user_obj:
+            u = {
+                "id": getattr(user_obj, "id", None),
+                "email": _n(getattr(user_obj, "email", None)),
+            }
+            st.session_state["sb_user"] = u
+            return u
+    except Exception:
+        pass
+
     return None
 
 def current_user_email() -> str:
@@ -84,7 +105,7 @@ def require_auth():
     Restaura sessão (se existir) e exige autenticação apenas se necessário.
     """
     from core.supa import supabase_user
-    supabase_user()  # restaura/normaliza a sessão
+    supabase_user()  # restaura/normaliza a sessão e tenta preencher sb_user
 
     if allowed_email():
         if current_user_email() != allowed_email():
