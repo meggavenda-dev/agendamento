@@ -18,7 +18,7 @@ st.set_page_config(page_title="PulseAgenda", layout="wide")
 # 1) Restaura cliente/sessão
 sb = supabase_user()
 
-# 2) Exige autenticação (abre login se necessário)
+# 2) Exige autenticação
 uid = require_auth()
 
 # 3) Perfil/tema
