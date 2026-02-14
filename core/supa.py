@@ -68,7 +68,7 @@ def _session_path() -> str:
 
 def save_session_to_file(session_obj):
     """
-    Salva apenas a versão normalizada (dict) para garantir JSON válido.
+    Salva a versão normalizada (dict) para garantir JSON válido.
     """
     try:
         data = normalize_session(session_obj) if session_obj else None
@@ -77,7 +77,6 @@ def save_session_to_file(session_obj):
         with open(_session_path(), "w", encoding="utf-8") as f:
             json.dump(data, f)
     except Exception:
-        # não interrompe o app caso falhe
         pass
 
 def load_session_from_file():
@@ -123,7 +122,6 @@ def supabase_user():
     refresh_token = _extract(sess, "refresh_token")
 
     if not refresh_token:
-        # sem refresh_token não dá para manter
         return sb
 
     try:
@@ -138,7 +136,7 @@ def supabase_user():
             st.session_state["sb_session"] = norm
             save_session_to_file(norm)
 
-        # Garante sb_user preenchido (para current_user_* funcionar)
+        # Garante sb_user preenchido para current_user_*
         try:
             u = sb.auth.get_user()
             user_obj = getattr(u, "user", None) if u else None
