@@ -5,33 +5,30 @@ from core.supa import (
     allowed_email,
     save_session_to_file,
     clear_saved_session,
+    normalize_session,   # usamos para salvar sessão normalizada
 )
 
 def _n(email: str) -> str:
     return (email or "").strip().lower()
 
 def current_user():
-    user = st.session_state.get("sb_user")
-    if user:
-        return user
+    # Primeiro tenta o sb_user normalizado
+    u = st.session_state.get("sb_user")
+    if u:
+        return u
+    # Depois tenta extrair da sb_session (normalizada)
     sess = st.session_state.get("sb_session")
-    if not sess:
-        return None
-    return getattr(sess, "user", None) or (sess.get("user") if isinstance(sess, dict) else None)
+    if isinstance(sess, dict):
+        return sess.get("user")
+    return None
 
 def current_user_email() -> str:
-    u = current_user()
-    e = getattr(u, "email", None) if u else None
-    if not e and isinstance(u, dict):
-        e = u.get("email")
-    return _n(e)
+    u = current_user() or {}
+    return _n(u.get("email"))
 
 def current_user_id():
-    u = current_user()
-    uid = getattr(u, "id", None) if u else None
-    if not uid and isinstance(u, dict):
-        uid = u.get("id")
-    return uid
+    u = current_user() or {}
+    return u.get("id")
 
 def logout():
     try:
@@ -61,18 +58,24 @@ def login_box():
                 "email": _n(email),
                 "password": password
             })
+
             session = getattr(res, "session", None) or (res.get("session") if isinstance(res, dict) else None)
             user    = getattr(res, "user", None)    or (res.get("user") if isinstance(res, dict) else None)
 
             if not session:
                 st.error("Falha no login: sem sessão retornada."); st.stop()
 
-            st.session_state["sb_session"] = session
-            st.session_state["sb_user"] = user
+            # Normaliza e salva
+            norm = normalize_session(session)
+            st.session_state["sb_session"] = norm
+            st.session_state["sb_user"] = {
+                "id": getattr(user, "id", None) if user and not isinstance(user, dict) else (user or {}).get("id"),
+                "email": _n(getattr(user, "email", None) if user and not isinstance(user, dict) else (user or {}).get("email")),
+            }
             st.session_state["login_email"] = _n(email)
 
             if keep:
-                save_session_to_file(session)
+                save_session_to_file(norm)
 
             st.success("Login realizado")
             st.rerun()
@@ -83,7 +86,7 @@ def require_auth():
     """
     Restaura sessão (se existir) e exige autenticação apenas se necessário.
     """
-    # Import local para evitar risco de import circular
+    # Import local para evitar import circular
     from core.supa import supabase_user
 
     # 1) restaura/normaliza a sessão
