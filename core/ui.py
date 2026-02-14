@@ -13,7 +13,6 @@ def load_css(focus_mode: bool = False):
         with open(_ASSETS_CSS, "r", encoding="utf-8") as f:
             css = f.read()
     except Exception:
-        # fallback leve se o CSS não estiver disponível
         css = ":root{--bg:#fff;--text:#111} body{background:var(--bg);color:var(--text)}"
 
     body_class = "theme-focus" if focus_mode else ""
@@ -26,7 +25,6 @@ def priority_label(p: int) -> str:
     p = int(p or 3)
     return {1: "Alta", 2: "Média", 3: "Normal", 4: "Baixa"}.get(p, "Normal")
 
-# ---------- Componentes usados em "Agora" ----------
 def item_card(item: dict, tz_name: str) -> None:
     title = item.get("title", "Item")
     tag = item.get("tag", "geral")
@@ -42,15 +40,10 @@ def item_card(item: dict, tz_name: str) -> None:
     )
 
 def actions_row(actions: list[tuple[str, str, str]]):
-    """
-    actions: lista [(label, variant, key), ...]
-    Retorna uma tupla de bools na mesma ordem (se foi clicado).
-    """
     cols = st.columns(len(actions))
     out = []
     for i, (label, variant, key) in enumerate(actions):
         kwargs = {}
-        # mapear variantes se desejar
         if variant == "danger":
             kwargs["type"] = "secondary"
         elif variant in ("primary", "ok"):
@@ -58,7 +51,6 @@ def actions_row(actions: list[tuple[str, str, str]]):
         out.append(cols[i].button(label, key=key, use_container_width=True, **kwargs))
     return tuple(out)
 
-# ---------- Componentes usados em "Semana" ----------
 def week_item_row(title: str, meta: str, priority: int) -> str:
     pr = priority_label(priority)
     return (
