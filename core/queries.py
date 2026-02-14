@@ -6,6 +6,9 @@ def now_utc():
     return datetime.now(timezone.utc)
 
 def get_profile(sb, user_id):
+    """
+    Busca perfil do usuário (timezone, tema, preferências).
+    """
     try:
         d = (
             sb.table("profiles")
