@@ -9,7 +9,6 @@ SESS_DIR = os.path.join(".streamlit", "sessions")
 os.makedirs(SESS_DIR, exist_ok=True)
 
 def _get(name: str, default: str = "") -> str:
-    # Busca primeiro em st.secrets (Cloud), depois em variáveis de ambiente (local)
     if name in st.secrets:
         return str(st.secrets.get(name))
     return os.environ.get(name, default)
@@ -27,7 +26,38 @@ def supabase_anon():
         )
     return create_client(url, key)
 
-# ---------------- Persistência local (por dispositivo/sessão de navegador) ----------------
+# ---------------- Normalização de sessão ----------------
+def _extract(obj, key, default=None):
+    if obj is None:
+        return default
+    v = getattr(obj, key, None)
+    if v is not None:
+        return v
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return default
+
+def _normalize_user(user_obj):
+    if not user_obj:
+        return None
+    return {
+        "id": _extract(user_obj, "id"),
+        "email": (_extract(user_obj, "email") or "").strip().lower(),
+    }
+
+def normalize_session(sess_obj):
+    """
+    Converte o objeto de sessão do supabase-py em um dict JSON‑serializável.
+    """
+    if not sess_obj:
+        return None
+    return {
+        "access_token": _extract(sess_obj, "access_token"),
+        "refresh_token": _extract(sess_obj, "refresh_token"),
+        "user": _normalize_user(_extract(sess_obj, "user")),
+    }
+
+# ---------------- Persistência local ----------------
 def _device_id() -> str:
     if "device_id" not in st.session_state:
         st.session_state["device_id"] = str(uuid.uuid4())
@@ -36,17 +66,21 @@ def _device_id() -> str:
 def _session_path() -> str:
     return os.path.join(SESS_DIR, f"{_device_id()}.json")
 
-def save_session_to_file(session_obj: dict | None):
+def save_session_to_file(session_obj):
+    """
+    Salva apenas a versão normalizada (dict) para garantir JSON válido.
+    """
     try:
-        if not session_obj:
+        data = normalize_session(session_obj) if session_obj else None
+        if not data:
             return
         with open(_session_path(), "w", encoding="utf-8") as f:
-            json.dump(session_obj, f)
+            json.dump(data, f)
     except Exception:
-        # não quebra o app se falhar ao salvar
+        # não interrompe o app caso falhe
         pass
 
-def load_session_from_file() -> dict | None:
+def load_session_from_file():
     try:
         p = _session_path()
         if not os.path.exists(p):
@@ -64,48 +98,35 @@ def clear_saved_session():
     except Exception:
         pass
 
-# ---------------- Restauração/normalização de sessão ----------------
-def _extract(obj, key):
-    if not obj:
-        return None
-    v = getattr(obj, key, None)
-    if v:
-        return v
-    if isinstance(obj, dict):
-        return obj.get(key)
-    return None
-
+# ---------------- Restauração de sessão ----------------
 def supabase_user():
     """
-    Retorna um cliente Supabase com a sessão restaurada, se houver.
-    Ordem:
-      1) Usa st.session_state["sb_session"] se existir;
-      2) Senão, tenta arquivo salvo (persistência local);
-      3) Se tokens expirados, tenta refresh;
-      4) Se falhar, limpa e retorna cliente anônimo.
+    Retorna cliente Supabase com sessão restaurada (se houver) e
+    garante que st.session_state['sb_user'] seja preenchido.
     """
     sb = supabase_anon()
 
-    # 1) sessão na memória
+    # 1) memória
     sess = st.session_state.get("sb_session")
 
-    # 2) se não houver, tenta no arquivo
+    # 2) arquivo, se necessário
     if not sess:
-        sess = load_session_from_file()
-        if sess:
-            st.session_state["sb_session"] = sess
+        saved = load_session_from_file()
+        if saved:
+            sess = saved
+            st.session_state["sb_session"] = saved  # já é dict normalizado
 
     if not sess:
-        return sb  # anônimo; require_auth pedirá login se necessário
+        return sb  # anônimo
 
     access_token = _extract(sess, "access_token")
     refresh_token = _extract(sess, "refresh_token")
+
     if not refresh_token:
-        # não há como manter se não tiver refresh_token
+        # sem refresh_token não dá para manter
         return sb
 
     try:
-        # aplica sessão; supabase-py pode auto-refresh em seguida
         if access_token:
             sb.auth.set_session(access_token, refresh_token)
         else:
@@ -113,8 +134,19 @@ def supabase_user():
 
         current = sb.auth.get_session()
         if current and current.session:
-            st.session_state["sb_session"] = current.session
-            save_session_to_file(current.session)
+            norm = normalize_session(current.session)
+            st.session_state["sb_session"] = norm
+            save_session_to_file(norm)
+
+        # Garante sb_user preenchido (para current_user_* funcionar)
+        try:
+            u = sb.auth.get_user()
+            user_obj = getattr(u, "user", None) if u else None
+            if user_obj:
+                st.session_state["sb_user"] = _normalize_user(user_obj)
+        except Exception:
+            pass
+
         return sb
     except Exception:
         # última tentativa: refresh explícito
@@ -122,8 +154,16 @@ def supabase_user():
             sb.auth.refresh_session()
             current = sb.auth.get_session()
             if current and current.session:
-                st.session_state["sb_session"] = current.session
-                save_session_to_file(current.session)
+                norm = normalize_session(current.session)
+                st.session_state["sb_session"] = norm
+                save_session_to_file(norm)
+                try:
+                    u = sb.auth.get_user()
+                    user_obj = getattr(u, "user", None) if u else None
+                    if user_obj:
+                        st.session_state["sb_user"] = _normalize_user(user_obj)
+                except Exception:
+                    pass
                 return sb
         except Exception:
             pass
