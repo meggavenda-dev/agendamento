@@ -1,14 +1,21 @@
-
+# pages/5_Pomodoro.py
+import os
+import sys
 import streamlit as st
 from datetime import datetime, timedelta, timezone
+
+APP_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if APP_ROOT not in sys.path:
+    sys.path.insert(0, APP_ROOT)
+
 from core.auth import require_auth
 from core.supa import supabase_user
 from core.ui import load_css
 
 st.set_page_config(page_title="Pomodoro • PulseAgenda", layout="wide")
 
-uid = require_auth()
 sb = supabase_user()
+uid = require_auth()
 
 try:
     prof = sb.table("profiles").select("theme").eq("id", uid).single().execute().data or {}
@@ -23,12 +30,12 @@ st.caption("Foco em um item por vez")
 try:
     items = (
         sb.table("items")
-        .select("id,title,estimated_minutes,spent_minutes,priority")
-        .eq("user_id", uid)
-        .neq("status","done")
-        .order("priority", desc=False)
-        .execute()
-        .data or []
+          .select("id,title,estimated_minutes,spent_minutes,priority")
+          .eq("user_id", uid)
+          .neq("status", "done")
+          .order("priority", desc=False)
+          .execute()
+          .data or []
     )
 except Exception as e:
     st.error(f"Falha ao carregar itens: {e}")
@@ -55,29 +62,48 @@ if st.button("Iniciar"):
 s = st.session_state.get("pomodoro")
 if s:
     start = datetime.fromisoformat(s["start"]) if s.get("start") else None
-    phase = s.get("phase","work")
+    phase = s.get("phase", "work")
     dur = s["work_min"] if phase == "work" else s.get("break_min", 0)
     end = start + timedelta(minutes=dur)
     now = datetime.now(timezone.utc)
-    rem = max(0, int((end-now).total_seconds()))
-    mm = rem // 60; ss = rem % 60
+    rem = max(0, int((end - now).total_seconds()))
+    mm = rem // 60
+    ss = rem % 60
     st.subheader(f"Fase: {'Foco' if phase=='work' else 'Pausa'} — {mm:02d}:{ss:02d}")
     st.caption("Atualize a página periodicamente para ver a contagem.")
 
     if rem == 0:
         if phase == "work":
             try:
-                it = sb.table("items").select("spent_minutes").eq("id",s["item_id"]).single().execute().data; spent=int(it.get("spent_minutes") or 0)
-                sb.table("items").update({"spent_minutes": spent + int(s["work_min"]) }).eq("id",s["item_id"]).eq("user_id",uid).execute()
+                it = (
+                    sb.table("items")
+                      .select("spent_minutes")
+                      .eq("id", s["item_id"])
+                      .single()
+                      .execute()
+                      .data
+                )
+                spent = int((it or {}).get("spent_minutes") or 0)
+                sb.table("items").update({"spent_minutes": spent + int(s["work_min"])}) \
+                    .eq("id", s["item_id"]).eq("user_id", uid).execute()
             except Exception:
                 pass
-            s["phase"] = "break" if s.get("break_min",0) > 0 else "done"; s["start"] = datetime.now(timezone.utc).isoformat(); st.session_state["pomodoro"]=s; st.success("Foco concluído. Tempo contabilizado.")
+            s["phase"] = "break" if s.get("break_min", 0) > 0 else "done"
+            s["start"] = datetime.now(timezone.utc).isoformat()
+            st.session_state["pomodoro"] = s
+            st.success("Foco concluído. Tempo contabilizado.")
         else:
-            s["phase"] = "done"; st.session_state["pomodoro"]=s; st.info("Pausa concluída.")
+            s["phase"] = "done"
+            st.session_state["pomodoro"] = s
+            st.info("Pausa concluída.")
 
     if phase == "done":
-        c1,c2 = st.columns(2)
+        c1, c2 = st.columns(2)
         if c1.button("Concluir item"):
-            sb.table("items").update({"status":"done"}).eq("id",s["item_id"]).eq("user_id",uid).execute(); st.session_state.pop("pomodoro",None); st.success("Item concluído")
+            sb.table("items").update({"status": "done"}) \
+              .eq("id", s["item_id"]).eq("user_id", uid).execute()
+            st.session_state.pop("pomodoro", None)
+            st.success("Item concluído")
         if c2.button("Nova sessão"):
-            st.session_state.pop("pomodoro",None); st.experimental_rerun()
+            st.session_state.pop("pomodoro", None)
+            st.experimental_rerun()
